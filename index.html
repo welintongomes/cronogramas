@@ -469,6 +469,127 @@
             gap: 10px;
             margin-top: 20px;
         }
+
+        /* Estilos para o botão de leitura */
+        .read-task-btn {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .read-task-btn:hover {
+            background-color: #138496;
+        }
+
+        .read-task-btn.reading {
+            background-color: #fd7e14;
+            animation: reading-pulse 2s infinite;
+        }
+
+        .read-task-btn.reading:hover {
+            background-color: #e96b00;
+        }
+
+        @keyframes reading-pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .speech-controls {
+            margin-top: 10px;
+            display: none;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .speech-controls.active {
+            display: flex;
+        }
+
+        .speech-control-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .speech-control-btn:hover {
+            background-color: #5a6268;
+        }
+
+        .speech-status {
+            font-size: 12px;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        /* Estilos para o botão Mostrar Mais */
+        .show-more-container {
+            text-align: center;
+            margin: 15px 0;
+        }
+
+
+        .show-more-btn {
+            padding: 8px 16px;
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+
+        .show-more-btn:hover {
+            background-color: #357abb;
+        }
+
+
+        .view-mode-container {
+            margin: 10px 0;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+
+        #viewModeSelect {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .task-step {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .task-step:hover {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+
+        .task-step.completed:hover {
+            background-color: rgba(40, 167, 69, 0.1);
+        }
     </style>
 </head>
 
@@ -572,45 +693,6 @@
     </div>
 
 
-    <style>
-        /* Estilos para o botão Mostrar Mais */
-        .show-more-container {
-            text-align: center;
-            margin: 15px 0;
-        }
-
-
-        .show-more-btn {
-            padding: 8px 16px;
-            background-color: #4a90e2;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-
-        .show-more-btn:hover {
-            background-color: #357abb;
-        }
-
-
-        .view-mode-container {
-            margin: 10px 0;
-            text-align: right;
-            padding-right: 10px;
-        }
-
-
-        #viewModeSelect {
-            padding: 5px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-    </style>
-
-
     <script>
         // Inicialização do IndexedDB
         let db;
@@ -629,6 +711,11 @@
         let recognition = null;
         let isRecording = false;
         let isFirstAudioInput = true;
+        // Variáveis para síntese de voz (leitura)
+        let speechSynthesis = window.speechSynthesis;
+        let currentUtterance = null;
+        let isReading = false;
+        let currentReadingTaskId = null;
 
 
         // Abrir conexão com o banco de dados
@@ -954,7 +1041,131 @@
         function hideAudioStatus() {
             audioStatus.className = 'audio-status';
         }
-        // Funções
+        // Funções para síntese de voz (leitura)
+        function toggleReadTask(taskId) {
+            if (isReading && currentReadingTaskId === taskId) {
+                stopReading();
+            } else {
+                startReadingTask(taskId);
+            }
+        }
+
+        function startReadingTask(taskId) {
+            // Parar qualquer leitura em andamento
+            if (isReading) {
+                stopReading();
+            }
+
+            const transaction = db.transaction([STORE_NAME], 'readonly');
+            const store = transaction.objectStore(STORE_NAME);
+            const request = store.get(taskId);
+
+            request.onsuccess = (event) => {
+                const task = event.target.result;
+                if (task) {
+                    readTaskContent(task, taskId);
+                }
+            };
+
+            request.onerror = (event) => {
+                console.error('Erro ao obter tarefa para leitura:', event.target.error);
+                showStatusMessage('Erro ao obter cronograma para leitura', 'error');
+            };
+        }
+
+        function readTaskContent(task, taskId) {
+            // Preparar o texto para leitura
+            let textToRead = `Cronograma: ${task.name}. `;
+
+            if (task.steps && task.steps.length > 0) {
+                textToRead += `Este cronograma possui ${task.steps.length} passos: `;
+
+                task.steps.forEach((step, index) => {
+                    const stepNumber = index + 1;
+                    const status = step.completed ? 'concluído' : 'pendente';
+                    textToRead += `Passo ${stepNumber}: ${step.text}, status ${status}. `;
+                });
+            } else {
+                textToRead += 'Este cronograma não possui passos definidos.';
+            }
+
+            // Criar utterance
+            currentUtterance = new SpeechSynthesisUtterance(textToRead);
+            currentUtterance.lang = 'pt-BR';
+            currentUtterance.rate = 0.9; // Velocidade um pouco mais lenta
+            currentUtterance.pitch = 1;
+            currentUtterance.volume = 1;
+
+            // Event listeners para a utterance
+            currentUtterance.onstart = () => {
+                isReading = true;
+                currentReadingTaskId = taskId;
+                updateReadButton(taskId, true);
+                console.log('Iniciou leitura do cronograma:', task.name);
+            };
+
+            currentUtterance.onend = () => {
+                isReading = false;
+                currentReadingTaskId = null;
+                updateReadButton(taskId, false);
+                console.log('Finalizou leitura do cronograma:', task.name);
+            };
+
+            currentUtterance.onerror = (event) => {
+                console.error('Erro na síntese de voz:', event);
+                isReading = false;
+                currentReadingTaskId = null;
+                updateReadButton(taskId, false);
+                showStatusMessage('Erro na leitura do cronograma', 'error');
+            };
+
+            // Iniciar a leitura
+            try {
+                speechSynthesis.speak(currentUtterance);
+            } catch (error) {
+                console.error('Erro ao iniciar síntese de voz:', error);
+                showStatusMessage('Erro ao iniciar leitura. Síntese de voz não suportada.', 'error');
+            }
+        }
+
+        function stopReading() {
+            if (speechSynthesis.speaking) {
+                speechSynthesis.cancel();
+            }
+
+            if (currentReadingTaskId) {
+                updateReadButton(currentReadingTaskId, false);
+            }
+
+            isReading = false;
+            currentReadingTaskId = null;
+            currentUtterance = null;
+        }
+
+        function updateReadButton(taskId, isCurrentlyReading) {
+            const readBtn = document.querySelector(`[data-taskid="${taskId}"].read-task-btn`);
+            if (readBtn) {
+                const btnText = readBtn.querySelector('.read-btn-text');
+
+                if (isCurrentlyReading) {
+                    readBtn.classList.add('reading');
+                    btnText.textContent = '⏸️ Parar';
+                } else {
+                    readBtn.classList.remove('reading');
+                    btnText.textContent = '🔊 Ler';
+                }
+            }
+        }
+
+        function checkSpeechSynthesisSupport() {
+            if (!('speechSynthesis' in window)) {
+                console.warn('Síntese de voz não suportada neste navegador');
+                return false;
+            }
+            return true;
+        }
+
+        // Funçao para criar novo cronograma
         function createTask() {
             const name = taskNameInput.value.trim();
             if (!name) {
@@ -1038,22 +1249,13 @@
 
 
                 // Aplicar filtro de pesquisa
+                // Aplicar filtro de pesquisa (apenas no título)
                 const searchValue = searchInput.value.trim().toLowerCase();
                 filteredTasks = tasks.filter(task => {
                     if (!searchValue) return true; // Se não há pesquisa, mostrar todas
 
-
-                    // Pesquisar por nome da tarefa
-                    if (task.name.toLowerCase().includes(searchValue)) return true;
-
-
-                    // Pesquisar nos passos da tarefa
-                    const hasMatchingStep = task.steps.some(step =>
-                        step.text.toLowerCase().includes(searchValue)
-                    );
-
-
-                    return hasMatchingStep;
+                    // Pesquisar APENAS por nome da tarefa
+                    return task.name.toLowerCase().includes(searchValue);
                 });
 
 
@@ -1156,6 +1358,9 @@
     <div class="task-actions">
         <button class="edit-task-btn" data-taskid="${task.id}">Editar</button>
         <button class="delete-task-btn danger" data-taskid="${task.id}">Excluir</button>
+        <button class="read-task-btn" data-taskid="${task.id}">
+            <span class="read-btn-text">🔊 Ler</span>
+        </button>
     </div>
     <div class="task-content">
         <div class="task-name">${task.name}</div>
@@ -1186,14 +1391,22 @@
                     checkbox.addEventListener('change', toggleStepCompletion);
                 });
 
+                // NOVO: Adicionar event listeners para clique nos task-steps
+                const taskSteps = taskElement.querySelectorAll('.task-step');
+                taskSteps.forEach(taskStep => {
+                    taskStep.addEventListener('click', handleTaskStepClick);
+                });
+
 
                 // Adicionar event listeners para os botões de editar e excluir
                 const editBtn = taskElement.querySelector('.edit-task-btn');
                 const deleteBtn = taskElement.querySelector('.delete-task-btn');
+                const readBtn = taskElement.querySelector('.read-task-btn');
 
 
                 editBtn.addEventListener('click', () => openEditModal(task.id));
                 deleteBtn.addEventListener('click', () => deleteTask(task.id));
+                readBtn.addEventListener('click', () => toggleReadTask(task.id));
             });
         }
 
@@ -1244,6 +1457,25 @@
             };
         }
 
+        function handleTaskStepClick(event) {
+            // Evitar que o clique no checkbox dispare o evento duas vezes
+            if (event.target.type === 'checkbox') {
+                return;
+            }
+
+            // Encontrar o checkbox dentro do task-step clicado
+            const checkbox = event.currentTarget.querySelector('.task-step-checkbox');
+
+            if (checkbox) {
+                // Alternar o estado do checkbox
+                checkbox.checked = !checkbox.checked;
+
+                // Disparar o evento de mudança para processar a atualização
+                const changeEvent = new Event('change');
+                checkbox.dispatchEvent(changeEvent);
+            }
+        }
+
 
         function openEditModal(taskId) {
             const transaction = db.transaction([STORE_NAME], 'readonly');
@@ -1277,6 +1509,7 @@
             taskModal.style.display = 'none';
             currentEditTaskId = null;
         }
+
 
 
         function saveTaskChanges() {
@@ -1569,10 +1802,25 @@
             }, 3000);
         }
 
+        // Fecha o modal se clicar fora da área do conteúdo
+function setupModalCloseOnOutsideClick() {
+    taskModal.addEventListener('click', (e) => {
+        // Se o clique foi diretamente no fundo do modal (não no conteúdo)
+        if (e.target === taskModal) {
+            closeModal();
+        }
+    });
+}
+
 
         // Inicializar a aplicação
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Aplicação inicializada');
+
+            // Verificar suporte à síntese de voz
+            if (!checkSpeechSynthesisSupport()) {
+                console.warn('Botões de leitura podem não funcionar corretamente');
+            }
 
 
             // Definir tamanho de página padrão para 2 itens no modo compacto
@@ -1590,6 +1838,14 @@
             updateShowMoreButton();
             // Inicializar reconhecimento de voz
             initSpeechRecognition();
+
+            setupModalCloseOnOutsideClick();
+        });
+        // Parar leitura quando sair da página
+        window.addEventListener('beforeunload', () => {
+            if (isReading) {
+                stopReading();
+            }
         });
     </script>
 </body>
