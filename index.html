@@ -77,15 +77,14 @@
             resize: vertical;
         }
 
-
         button {
             background-color: var(--primary-color);
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 2px 2px;
             border-radius: var(--border-radius);
             cursor: pointer;
-            font-size: 16px;
+            font-size: 11px;
             transition: background-color 0.3s;
         }
 
@@ -290,8 +289,8 @@
         .task-actions {
             display: flex;
             justify-content: flex-end;
-            gap: 10px;
-            margin-bottom: 10px;
+            gap: 8px;
+            margin-bottom: 2px;
             flex-direction: row-reverse;
         }
 
@@ -808,15 +807,20 @@
             let recognition = null;
             let isRecording = false;
             let isFirstAudioInput = true;
+
             // Variáveis para síntese de voz (leitura)
             let speechSynthesis = window.speechSynthesis;
             let currentUtterance = null;
+            let currentTaskId = null;
+            let isPaused = false;
             let isReading = false;
             let currentReadingTaskId = null;
+            let tasks = [];
+
+
             // Adicionar no início do script, junto com as outras variáveis
             let isEditModalFirstAudioInput = true;
             let isEditModalRecording = false;
-
 
             // Abrir conexão com o banco de dados
             const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -1258,13 +1262,58 @@
                 audioStatus.className = 'audio-status';
             }
             // Funções para síntese de voz (leitura)
+            // function toggleReadTask(taskId) {
+            //     if (isReading && currentReadingTaskId === taskId) {
+            //         stopReading();
+            //     } else {
+            //         startReadingTask(taskId);
+            //     }
+            // }
             function toggleReadTask(taskId) {
-                if (isReading && currentReadingTaskId === taskId) {
-                    stopReading();
+                if (!checkSpeechSynthesisSupport()) return;
+
+                const task = tasks.find(t => t.id === taskId); // Pegamos a task pelo ID
+                if (!task) return;
+
+                const textToRead = `${task.name}. ${task.steps.map(s => s.text).join('. ')}`;
+
+                // Se está lendo esta tarefa
+                if (speechSynthesis.speaking && currentTaskId === taskId) {
+                    if (!isPaused) {
+                        // Pausar leitura
+                        speechSynthesis.pause();
+                        isPaused = true;
+                        updateReadButton(taskId, false); // Mostrar "🔊 Ler"
+                    } else {
+                        // Continuar leitura
+                        speechSynthesis.resume();
+                        isPaused = false;
+                        updateReadButton(taskId, true); // Mostrar "⏸️ Parar"
+                    }
                 } else {
-                    startReadingTask(taskId);
+                    // Se estava lendo outra tarefa, cancela
+                    if (speechSynthesis.speaking) {
+                        speechSynthesis.cancel();
+                    }
+
+                    // Começar nova leitura
+                    currentUtterance = new SpeechSynthesisUtterance(textToRead);
+                    currentTaskId = taskId;
+                    isPaused = false;
+                    updateReadButton(taskId, true); // Mostrar "⏸️ Parar"
+
+                    // Quando terminar, resetar botão
+                    currentUtterance.onend = () => {
+                        updateReadButton(taskId, false);
+                        currentTaskId = null;
+                        currentUtterance = null;
+                        isPaused = false;
+                    };
+
+                    speechSynthesis.speak(currentUtterance);
                 }
             }
+
 
             function startReadingTask(taskId) {
                 // Parar qualquer leitura em andamento
@@ -1377,7 +1426,7 @@
 
                     if (isCurrentlyReading) {
                         readBtn.classList.add('reading');
-                        btnText.textContent = '⏸️ Parar';
+                        btnText.textContent = '⏸️ Pausa';
                     } else {
                         readBtn.classList.remove('reading');
                         btnText.textContent = '🔊 Ler';
@@ -1392,6 +1441,7 @@
                 }
                 return true;
             }
+
 
             // Funçao para criar novo cronograma
             function createTask() {
@@ -1594,10 +1644,8 @@
 
 
                 request.onsuccess = (event) => {
-                    const tasks = event.target.result;
+                    tasks = event.target.result;
 
-
-                   
                     // Aplicar filtro de pesquisa (apenas no título)
                     // Função genérica para busca normalizada
                     /**
@@ -1761,6 +1809,10 @@
                 <button class="read-task-btn" data-taskid="${task.id}">
                     <span class="read-btn-text">🔊 Ler</span>
                 </button>
+                <button class="step-read-btn" data-taskid="${task.id}">
+    <span class="read-btn-text">🔁 Executar</span>
+</button>
+
             </div>
             <div class="task-content">
                 <div class="task-name">${task.highlighted || task.name}</div>
@@ -1807,10 +1859,13 @@
                     const editBtn = taskElement.querySelector('.edit-task-btn');
                     const deleteBtn = taskElement.querySelector('.delete-task-btn');
                     const readBtn = taskElement.querySelector('.read-task-btn');
+                    const stepReadBtn = taskElement.querySelector('.step-read-btn');
 
                     editBtn.addEventListener('click', () => openEditModal(task.id));
                     deleteBtn.addEventListener('click', () => deleteTask(task.id));
                     readBtn.addEventListener('click', () => toggleReadTask(task.id));
+                    stepReadBtn.addEventListener('click', () => readAndCheckNextStep(task.id));
+
 
                     // NOVO: Event listener para o botão de expandir
                     const expandBtn = taskElement.querySelector('.expand-btn');
@@ -2282,6 +2337,48 @@
                     stopReading();
                 }
             });
+            function readAndCheckNextStep(taskId) {
+                if (!checkSpeechSynthesisSupport()) return;
+
+                const taskElement = document.querySelector(`[data-taskid="${taskId}"]`).closest('.task-item');
+                if (!taskElement) return;
+
+                const taskTitle = taskElement.querySelector('.task-name')?.textContent || '';
+                const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
+
+                // Obter os passos ainda não concluídos
+                const uncheckedSteps = Array.from(checkboxes).filter(cb => !cb.checked);
+
+                // Se não houver mais etapas, parar
+                if (uncheckedSteps.length === 0) {
+                    alert('Todos os passos já foram concluídos!');
+                    return;
+                }
+
+                // Obter o primeiro passo pendente
+                const currentStepCheckbox = uncheckedSteps[0];
+                const stepText = currentStepCheckbox.closest('.task-step').querySelector('.step-content')?.textContent || '';
+
+                // Montar o texto que será lido: se for a primeira vez, ler o título também
+                const isFirstStep = uncheckedSteps.length === checkboxes.length;
+                const fullText = isFirstStep ? `${taskTitle}. ${stepText}` : stepText;
+
+                // Criar e falar
+                const utterance = new SpeechSynthesisUtterance(fullText);
+                utterance.onend = () => {
+                    // Marcar o checkbox após leitura
+                    currentStepCheckbox.checked = true;
+
+                    // Você pode também disparar o evento de alteração, se tiver lógica atrelada
+                    currentStepCheckbox.dispatchEvent(new Event('change'));
+
+                    // Pausar após concluir este passo — leitura só continua com outro clique
+                };
+
+                speechSynthesis.cancel(); // Cancela qualquer leitura anterior
+                speechSynthesis.speak(utterance);
+            }
+
         </script>
 </body>
 
