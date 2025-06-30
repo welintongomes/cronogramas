@@ -807,6 +807,14 @@
             let recognition = null;
             let isRecording = false;
             let isFirstAudioInput = true;
+            // Variáveis para controle de áudio sequencial
+            let currentAudioQueue = [];
+            let currentAudioIndex = 0;
+            let isPlayingSequence = false;
+            let sequenceTimeout = null;
+            // Configurações de pausa (em milissegundos)
+            const PAUSE_AFTER_TITLE = 1000; // 1 segundos após o título
+            const PAUSE_BETWEEN_STEPS = 500; // 30 segundos entre steps
 
             // Variáveis para síntese de voz (leitura)
             let speechSynthesis = window.speechSynthesis;
@@ -1272,47 +1280,78 @@
             function toggleReadTask(taskId) {
                 if (!checkSpeechSynthesisSupport()) return;
 
-                const task = tasks.find(t => t.id === taskId); // Pegamos a task pelo ID
+                const task = tasks.find(t => t.id === taskId);
                 if (!task) return;
 
-                const textToRead = `${task.name}. ${task.steps.map(s => s.text).join('. ')}`;
+                const isMobile = isMobileDevice();
 
-                // Se está lendo esta tarefa
-                if (speechSynthesis.speaking && currentTaskId === taskId) {
+                // COMPORTAMENTO MOBILE: Apenas Play/Stop
+                if (isMobile) {
+                    // Se está reproduzindo, para tudo
+                    if (isPlayingSequence && currentTaskId === taskId) {
+                        stopAudioSequence();
+                        return;
+                    }
+
+                    // Para qualquer reprodução anterior
+                    if (isPlayingSequence) {
+                        stopAudioSequence();
+                    }
+
+                    // Iniciar nova sequência
+                    currentTaskId = taskId;
+                    currentAudioQueue = createAudioQueue(task);
+                    currentAudioIndex = 0;
+                    isPlayingSequence = true;
+
+                    updateReadButton(taskId, true, false);
+                    playNextInQueue();
+                    return;
+                }
+
+                // COMPORTAMENTO DESKTOP: Com controle de pausa
+                if (isPlayingSequence && currentTaskId === taskId) {
                     if (!isPaused) {
-                        // Pausar leitura
+                        // Pausar - para tanto o speechSynthesis quanto o timeout
                         speechSynthesis.pause();
+                        if (sequenceTimeout) {
+                            clearTimeout(sequenceTimeout);
+                            sequenceTimeout = null;
+                        }
                         isPaused = true;
-                        updateReadButton(taskId, false); // Mostrar "🔊 Ler"
+                        updateReadButton(taskId, true, true);
                     } else {
-                        // Continuar leitura
-                        speechSynthesis.resume();
+                        // Continuar
+                        const currentItem = currentAudioQueue[currentAudioIndex];
+                        if (currentItem && currentItem.type === 'pause') {
+                            // Se estava em pausa de tempo, continua a partir do próximo
+                            currentAudioIndex++;
+                            playNextInQueue();
+                        } else {
+                            // Se estava em pausa de fala, resume
+                            speechSynthesis.resume();
+                        }
                         isPaused = false;
-                        updateReadButton(taskId, true); // Mostrar "⏸️ Parar"
+                        updateReadButton(taskId, true, false);
                     }
                 } else {
-                    // Se estava lendo outra tarefa, cancela
-                    if (speechSynthesis.speaking) {
-                        speechSynthesis.cancel();
+                    // Para qualquer reprodução anterior
+                    if (isPlayingSequence) {
+                        stopAudioSequence();
                     }
 
-                    // Começar nova leitura
-                    currentUtterance = new SpeechSynthesisUtterance(textToRead);
+                    // Iniciar nova sequência
                     currentTaskId = taskId;
+                    currentAudioQueue = createAudioQueue(task);
+                    currentAudioIndex = 0;
+                    isPlayingSequence = true;
                     isPaused = false;
-                    updateReadButton(taskId, true); // Mostrar "⏸️ Parar"
 
-                    // Quando terminar, resetar botão
-                    currentUtterance.onend = () => {
-                        updateReadButton(taskId, false);
-                        currentTaskId = null;
-                        currentUtterance = null;
-                        isPaused = false;
-                    };
-
-                    speechSynthesis.speak(currentUtterance);
+                    updateReadButton(taskId, true, false);
+                    playNextInQueue();
                 }
             }
+
 
 
             function startReadingTask(taskId) {
@@ -1419,20 +1458,34 @@
                 currentUtterance = null;
             }
 
-            function updateReadButton(taskId, isCurrentlyReading) {
+            // Função para detectar se é dispositivo mobile
+            function isMobileDevice() {
+                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                    ('ontouchstart' in window) ||
+                    (navigator.maxTouchPoints > 0);
+            }
+
+            function updateReadButton(taskId, isCurrentlyReading, isPausedState = false) {
                 const readBtn = document.querySelector(`[data-taskid="${taskId}"].read-task-btn`);
                 if (readBtn) {
                     const btnText = readBtn.querySelector('.read-btn-text');
+                    const isMobile = isMobileDevice();
 
                     if (isCurrentlyReading) {
                         readBtn.classList.add('reading');
-                        btnText.textContent = '⏸️ Pausa';
+                        if (isMobile) {
+                            btnText.textContent = '⏹️ Parar';
+                        } else {
+                            btnText.textContent = isPausedState ? '▶️ Continuar' : '⏸️ Pausar';
+                        }
                     } else {
                         readBtn.classList.remove('reading');
                         btnText.textContent = '🔊 Ler';
                     }
                 }
             }
+
+
 
             function checkSpeechSynthesisSupport() {
                 if (!('speechSynthesis' in window)) {
@@ -1703,8 +1756,8 @@
 
                     // Chamada no seu fluxo principal (dentro do listener ou função loadTasks)
                     const searchValue = searchInput.value.trim();
-                    const filteredTasks = filterByNormalizedSearch(tasks, searchValue, task => task.name, true);
-                    renderTasks(filteredTasks, searchValue);
+                    filteredTasks = filterByNormalizedSearch(tasks, searchValue, task => task.name, true);
+                    renderTasksWithPagination();
 
 
 
@@ -2272,6 +2325,9 @@
             // Inicializar a aplicação
             document.addEventListener('DOMContentLoaded', () => {
                 console.log('Aplicação inicializada');
+                // Limpeza quando sair da página
+                window.addEventListener('beforeunload', stopAudioSequence);
+                window.addEventListener('pagehide', stopAudioSequence);
 
                 // Verificar suporte à síntese de voz
                 if (!checkSpeechSynthesisSupport()) {
@@ -2391,7 +2447,122 @@
                     cb.dispatchEvent(new Event('change')); // caso tenha lógica atrelada
                 });
             }
+            function renderTasksWithPagination() {
+                const startIndex = (currentPage - 1) * pageSize;
+                const endIndex = startIndex + pageSize;
+                const tasksToShow = filteredTasks.slice(startIndex, endIndex);
 
+                renderTasks(tasksToShow);
+                updatePaginationControls();
+            }
+
+            function updatePaginationControls() {
+                const totalPages = Math.ceil(filteredTasks.length / pageSize);
+
+                // Atualizar controles de paginação no DOM
+                const paginationElement = document.getElementById('pagination-controls');
+                if (paginationElement) {
+                    paginationElement.innerHTML = `
+            <button onclick="goToPage(1)" ${currentPage === 1 ? 'disabled' : ''}>Primeira</button>
+            <button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Anterior</button>
+            <span>Página ${currentPage} de ${totalPages}</span>
+            <button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Próxima</button>
+            <button onclick="goToPage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Última</button>
+        `;
+                }
+            }
+
+            function goToPage(page) {
+                const totalPages = Math.ceil(filteredTasks.length / pageSize);
+                if (page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    renderTasksWithPagination();
+                }
+            }
+            // Função para parar toda a sequência de áudio
+            function stopAudioSequence() {
+                speechSynthesis.cancel();
+                if (sequenceTimeout) {
+                    clearTimeout(sequenceTimeout);
+                    sequenceTimeout = null;
+                }
+                isPlayingSequence = false;
+                currentAudioQueue = [];
+                currentAudioIndex = 0;
+
+                if (currentTaskId) {
+                    updateReadButton(currentTaskId, false);
+                }
+
+                currentTaskId = null;
+                currentUtterance = null;
+                isPaused = false;
+            }
+            // Função para reproduzir próximo item da fila
+            function playNextInQueue() {
+                if (currentAudioIndex >= currentAudioQueue.length) {
+                    // Terminou a sequência
+                    stopAudioSequence();
+                    return;
+                }
+
+                const currentItem = currentAudioQueue[currentAudioIndex];
+
+                if (currentItem.type === 'pause') {
+                    // É uma pausa - usar setTimeout
+                    sequenceTimeout = setTimeout(() => {
+                        currentAudioIndex++;
+                        playNextInQueue();
+                    }, currentItem.duration);
+                } else {
+                    // É texto para falar
+                    currentUtterance = new SpeechSynthesisUtterance(currentItem.text);
+
+                    // Configurações otimizadas
+                    currentUtterance.rate = 0.9;
+                    currentUtterance.pitch = 1;
+                    currentUtterance.volume = 1;
+
+                    currentUtterance.onend = () => {
+                        currentAudioIndex++;
+                        playNextInQueue();
+                    };
+
+                    currentUtterance.onerror = () => {
+                        stopAudioSequence();
+                    };
+
+                    speechSynthesis.speak(currentUtterance);
+                }
+            }
+
+            // Função para criar a fila de áudio com pausas
+            function createAudioQueue(task) {
+                const queue = [];
+
+                // Adicionar título
+                queue.push({ type: 'speech', text: task.name });
+
+                // Adicionar pausa após título
+                queue.push({ type: 'pause', duration: PAUSE_AFTER_TITLE });
+
+                // Adicionar cada step com pausa
+                task.steps.forEach((step, index) => {
+                    queue.push({ type: 'speech', text: step.text });
+
+                    // Adicionar pausa entre steps (exceto no último)
+                    if (index < task.steps.length - 1) {
+                        queue.push({ type: 'pause', duration: PAUSE_BETWEEN_STEPS });
+                    }
+                });
+
+                return queue;
+            }
+
+            // Opcional: Mostrar configurações no console
+            console.log('Dispositivo detectado:', isMobileDevice() ? 'Mobile' : 'Desktop');
+            console.log('Pausa após título:', PAUSE_AFTER_TITLE + 'ms');
+            console.log('Pausa entre steps:', PAUSE_BETWEEN_STEPS + 'ms');
 
         </script>
 </body>
