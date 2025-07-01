@@ -315,18 +315,18 @@
         }
 
 
-        #searchInput {
-            width: 100%;
-            padding: 10px 35px 10px 15px;
-            border-radius: 20px;
-            border: 1px solid #ccc;
-            font-size: 16px;
-        }
+#searchInput {
+    width: 100%;
+    padding: 7px 10px 10px 35px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+}
 
 
         #clearSearchBtn {
             position: absolute;
-            right: 10px;
+            left: 10px;
             top: 50%;
             transform: translateY(-50%);
             background: none;
@@ -567,6 +567,7 @@
 
 
         #viewModeSelect {
+            width: 100%;
             padding: 5px;
             border-radius: 4px;
             border: 1px solid #ddd;
@@ -716,9 +717,9 @@
 
     <!-- Seletor para modo de visualização -->
     <div class="view-mode-container">
-        <div class="audio-btn-container"><button id="voiceSearchBtn" title="Pesquisar por voz">🎤 Busca Rápida</button>
+        <div class="audio-btn-container">
         </div>
-
+<button id="voiceSearchBtn" title="Pesquisar por voz">🎤 Busca Rápida</button>
         <select id="viewModeSelect">
             <option value="compact">Modo Compacto (2 últimos)</option>
             <option value="all">Mostrar Todos</option>
