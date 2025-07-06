@@ -72,10 +72,10 @@
         }
 
 
-textarea {
-    height: 80px;
-    resize: vertical;
-}
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
 
         button {
             background-color: var(--primary-color);
@@ -192,12 +192,12 @@ textarea {
         }
 
 
-.buttons-row {
-    display: flex;
-    gap: 10px;
-    margin-top: 20px;
-    justify-content: space-around;
-}
+        .buttons-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: space-around;
+        }
 
 
         .file-input {
@@ -543,17 +543,17 @@ textarea {
         }
 
 
-.show-more-btn {
-    margin-left: 12px;
-    width: 96%;
-    padding: 8px 16px;
-    background-color: #4a90e2;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
+        .show-more-btn {
+            margin-left: 12px;
+            width: 96%;
+            padding: 8px 16px;
+            background-color: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
 
 
         .show-more-btn:hover {
@@ -561,11 +561,11 @@ textarea {
         }
 
 
-.view-mode-container {
-    margin: 10px 0;
-    text-align: center;
-    padding-right: 10px;
-}
+        .view-mode-container {
+            margin: 10px 0;
+            text-align: center;
+            padding-right: 10px;
+        }
 
 
         #viewModeSelect {
@@ -593,12 +593,12 @@ textarea {
         }
 
         /* estilo para botão de pesquisa rapida */
-#voiceSearchBtn {
-    font-size: 11px;
-    width: 94%;
-    cursor: pointer;
-    margin-left: -15px;
-}
+        #voiceSearchBtn {
+            font-size: 11px;
+            width: 94%;
+            cursor: pointer;
+            margin-left: -15px;
+        }
 
 
         /* Estilos para expandir/recolher cronogramas */
@@ -672,6 +672,26 @@ textarea {
             background-color: yellow;
             border-radius: 2px;
         }
+
+        /* .task-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+            border-radius: 8px;
+            margin-bottom: 10px;
+
+
+        } */
+
+        .task-image {
+            display: none;
+            /* força o ocultamento padrão */
+        }
+
+        .botoesExpandir {
+            display: flex;
+            justify-content: space-around;
+        }
     </style>
 </head>
 
@@ -683,6 +703,7 @@ textarea {
     <div class="container">
         <div class="form-group">
             <label for="taskName">Nome do Cronograma:</label>
+
             <input type="text" id="taskName" placeholder="Ex: Como fazer panquecas">
         </div>
 
@@ -692,7 +713,10 @@ textarea {
             <textarea id="taskSteps"
                 placeholder="1 xícara de farinha de trigo&#10;1 colher de sopa de açúcar&#10;1 colher de sopa de fermento em pó&#10;Etc."></textarea>
         </div>
-
+        <div class="form-group">
+            <label for="taskImage">Imagem do Cronograma (opcional):</label>
+            <input type="file" id="taskImage" accept="image/*">
+        </div>
 
         <div class="create-btn-row">
 
@@ -774,6 +798,11 @@ textarea {
                 <div class="form-group">
                     <label for="editTaskSteps">Passos a serem executados (um por linha):</label>
                     <textarea id="editTaskSteps"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editTaskImage">Imagem do Cronograma (opcional):</label>
+                    <input type="file" id="editTaskImage" accept="image/*">
+                    <div id="currentImagePreview" style="margin-top: 10px;"></div>
                 </div>
 
                 <!-- ADICIONAR ESTE BLOCO: -->
@@ -999,6 +1028,10 @@ textarea {
             const editAudioIcon = document.getElementById('editAudioIcon');
             const editAudioBtnText = document.getElementById('editAudioBtnText');
             const editAudioStatus = document.getElementById('editAudioStatus');
+            // Referências para campos de imagem
+            const taskImageInput = document.getElementById('taskImage');
+            const editTaskImageInput = document.getElementById('editTaskImage');
+            const currentImagePreview = document.getElementById('currentImagePreview');
 
 
             // Adicionar referências aos elementos do DOM para a busca e paginação
@@ -1520,6 +1553,51 @@ textarea {
                     .map(step => step.trim())
                     .filter(step => step.length > 0)
                     .map(step => ({ text: step, completed: false }));
+                // Processar imagem se fornecida
+                let imageData = null;
+                if (taskImageInput.files && taskImageInput.files[0]) {
+                    const file = taskImageInput.files[0];
+                    const reader = new FileReader();
+
+                    reader.onload = function (e) {
+                        imageData = e.target.result;
+
+                        const task = {
+                            name,
+                            steps,
+                            image: imageData,
+                            createdAt: new Date().toISOString(),
+                            completed: false
+                        };
+
+                        saveTask(task);
+
+                        // Limpar os campos
+                        taskNameInput.value = '';
+                        taskStepsInput.value = '';
+                        taskImageInput.value = '';
+                        isFirstAudioInput = true;
+                    };
+
+                    reader.readAsDataURL(file);
+                } else {
+                    // Sem imagem, continuar normalmente
+                    const task = {
+                        name,
+                        steps,
+                        image: null,
+                        createdAt: new Date().toISOString(),
+                        completed: false
+                    };
+
+                    saveTask(task);
+
+                    // Limpar os campos
+                    taskNameInput.value = '';
+                    taskStepsInput.value = '';
+                    taskImageInput.value = '';
+                    isFirstAudioInput = true;
+                }
 
 
                 if (steps.length === 0) {
@@ -1527,23 +1605,6 @@ textarea {
                     return;
                 }
 
-
-                const task = {
-                    name,
-                    steps,
-                    createdAt: new Date().toISOString(),
-                    completed: false
-                };
-
-
-                saveTask(task);
-
-
-                // Limpar os campos
-                taskNameInput.value = '';
-                taskStepsInput.value = '';
-                // Reset do estado de áudio após criar tarefa
-                isFirstAudioInput = true;
             }
 
 
@@ -1873,7 +1934,8 @@ textarea {
 
             </div>
             <div class="task-content">
-                <div class="task-name">${task.highlighted || task.name}</div>
+    ${task.image ? `<div class="task-image"><img src="${task.image}" alt="Imagem do cronograma" style="width: 100%; max-height: 350px; object-fit: contain; border-radius: 8px; margin-bottom: 10px;"></div>` : ''}
+    <div class="task-name">${task.highlighted || task.name}</div>
                 <div class="task-progress">
                     <div class="progress-bar" style="width: ${progressPercentage}%"></div>
                 </div>
@@ -1882,11 +1944,23 @@ textarea {
                 </div>
                 
                 <!-- NOVO: Botão para expandir/recolher -->
+<div class="botoesExpandir">
                 <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
                     <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
                     <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
                 </button>
                 
+                ${task.image ? `
+    <div class="task-image-container">
+        <button class="toggle-image-btn expand-btn" data-taskid="${task.id}">
+            Mostrar imagem
+        </button>
+        <div class="task-image" style="display: none;">
+            <img src="${task.image}" alt="Imagem do cronograma" style="width: 100%; max-height: 600px; object-fit: contain; border-radius: 8px; margin-bottom: 10px;">
+        </div>
+    </div>
+` : ''}
+</div>
                 <!-- Os passos começam ocultos ou expandidos conforme o estado -->
                 <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
                     ${task.steps.map((step, index) => `
@@ -1918,6 +1992,17 @@ textarea {
                     const deleteBtn = taskElement.querySelector('.delete-task-btn');
                     const readBtn = taskElement.querySelector('.read-task-btn');
                     const stepReadBtn = taskElement.querySelector('.step-read-btn');
+                    const toggleImageBtn = taskElement.querySelector('.toggle-image-btn');
+                    if (toggleImageBtn) {
+                        toggleImageBtn.addEventListener('click', () => {
+                            const imageContainer = taskElement.querySelector('.task-image');
+                            const isVisible = imageContainer.style.display === 'block';
+
+                            imageContainer.style.display = isVisible ? 'none' : 'block';
+                            toggleImageBtn.textContent = isVisible ? 'Mostrar imagem' : 'Ocultar imagem';
+                        });
+                    }
+
 
                     editBtn.addEventListener('click', () => openEditModal(task.id));
                     deleteBtn.addEventListener('click', () => deleteTask(task.id));
@@ -1985,6 +2070,21 @@ textarea {
                         editTaskNameInput.value = task.name;
                         editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
                         currentEditTaskId = taskId;
+                        // Mostrar imagem atual se existir
+                        if (task.image) {
+                            currentImagePreview.innerHTML = `
+        <div style="text-align: center;">
+            <p>Imagem atual:</p>
+            <img src="${task.image}" alt="Imagem atual" style="max-width: 200px; max-height: 150px; object-fit: cover; border-radius: 8px;">
+            <br><small>Selecione uma nova imagem para substituir</small>
+            <button type="button" onclick="removeCurrentImage()" style="background-color: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+                🗑️ Remover Imagem
+            </button>
+        </div>
+    `;
+                        } else {
+                            currentImagePreview.innerHTML = '<p>Nenhuma imagem definida</p>';
+                        }
 
                         // ADICIONAR ESTAS LINHAS:
                         // Resetar variáveis de áudio do modal
@@ -2016,18 +2116,100 @@ textarea {
                 }
 
                 taskModal.style.display = 'none';
-                currentEditTaskId = null;
 
                 // Resetar variáveis de áudio
+                taskModal.style.display = 'none';
+                currentEditTaskId = null;
+                editTaskImageInput.value = '';
+                currentImagePreview.innerHTML = '';
                 isEditModalFirstAudioInput = true;
                 isEditModalRecording = false;
+                window.removeImageFlag = false; // Limpar flag de remoção
             }
 
 
 
+            // function saveTaskChanges() {
+            //     if (!currentEditTaskId) return;
+
+            //     const name = editTaskNameInput.value.trim();
+            //     if (!name) {
+            //         showStatusMessage('Por favor, insira um nome para o cronograma', 'error');
+            //         return;
+            //     }
+
+            //     const stepsText = editTaskStepsInput.value.trim();
+            //     if (!stepsText) {
+            //         showStatusMessage('Por favor, insira pelo menos um passo', 'error');
+            //         return;
+            //     }
+
+            //     const imageInput = document.getElementById('editTaskImage');
+            //     const file = imageInput?.files?.[0]; // Pode não existir
+
+            //     const transaction = db.transaction([STORE_NAME], 'readwrite');
+            //     const store = transaction.objectStore(STORE_NAME);
+            //     const request = store.get(currentEditTaskId);
+
+            //     request.onsuccess = (event) => {
+            //         const task = event.target.result;
+
+            //         if (task) {
+            //             const oldSteps = task.steps;
+            //             const newStepTexts = stepsText.split('\n')
+            //                 .map(step => step.trim())
+            //                 .filter(step => step.length > 0);
+
+            //             if (newStepTexts.length === 0) {
+            //                 showStatusMessage('Por favor, insira pelo menos um passo válido', 'error');
+            //                 return;
+            //             }
+
+            //             // Preservar estado de conclusão dos passos existentes
+            //             const newSteps = newStepTexts.map(text => {
+            //                 const existingStep = oldSteps.find(step => step.text === text);
+            //                 return existingStep || { text, completed: false };
+            //             });
+
+            //             task.name = name;
+            //             task.steps = newSteps;
+            //             task.completed = newSteps.every(step => step.completed);
+
+            //             if (file) {
+            //                 const reader = new FileReader();
+            //                 reader.onload = function (e) {
+            //                     task.image = e.target.result; // Salva imagem como base64
+            //                     saveTaskToStore(store, task);
+            //                 };
+            //                 reader.readAsDataURL(file);
+            //             } else {
+            //                 // Não mexe na imagem atual
+            //                 saveTaskToStore(store, task);
+            //             }
+            //         }
+            //     };
+
+            //     request.onerror = (event) => {
+            //         console.error('Erro ao obter o cronograma para edição:', event.target.error);
+            //         showStatusMessage('Erro ao obter o cronograma para edição', 'error');
+            //     };
+            // }
+
+            // // função auxiliar para salvar a task atualizada no IndexedDB
+            // function saveTaskToStore(store, task) {
+            //     const updateRequest = store.put(task);
+            //     updateRequest.onsuccess = () => {
+            //         closeModal();
+            //         loadTasks();
+            //         showStatusMessage('Cronograma atualizado com sucesso!');
+            //     };
+            //     updateRequest.onerror = (event) => {
+            //         console.error('Erro ao atualizar o cronograma:', event.target.error);
+            //         showStatusMessage('Erro ao atualizar o cronograma', 'error');
+            //     };
+            // }
             function saveTaskChanges() {
                 if (!currentEditTaskId) return;
-
 
                 const name = editTaskNameInput.value.trim();
                 if (!name) {
@@ -2035,69 +2217,105 @@ textarea {
                     return;
                 }
 
-
                 const stepsText = editTaskStepsInput.value.trim();
                 if (!stepsText) {
                     showStatusMessage('Por favor, insira pelo menos um passo', 'error');
                     return;
                 }
 
+                const steps = stepsText.split('\n')
+                    .map(step => step.trim())
+                    .filter(step => step.length > 0)
+                    .map((stepText, index) => {
+                        // Preservar o status de conclusão dos passos existentes
+                        const transaction = db.transaction([STORE_NAME], 'readonly');
+                        const store = transaction.objectStore(STORE_NAME);
+                        const request = store.get(currentEditTaskId);
 
+                        return { text: stepText, completed: false }; // Por padrão, novos passos não concluídos
+                    });
+
+                // PRIMEIRO: Processar imagem se houver
+                // PRIMEIRO: Processar imagem se houver
+                if (editTaskImageInput.files && editTaskImageInput.files[0]) {
+                    const file = editTaskImageInput.files[0];
+                    const reader = new FileReader();
+
+                    reader.onload = function (e) {
+                        const imageData = e.target.result;
+                        // Chamar função para salvar com nova imagem
+                        updateTaskInDatabase(name, steps, imageData);
+                    };
+
+                    reader.readAsDataURL(file);
+                } else if (window.removeImageFlag) {
+                    // Remover imagem existente
+                    updateTaskInDatabase(name, steps, 'REMOVE_IMAGE');
+                } else {
+                    // Salvar sem nova imagem (manter existente)
+                    updateTaskInDatabase(name, steps, null);
+                }
+            }
+
+            // NOVA FUNÇÃO AUXILIAR para salvar no banco
+            function updateTaskInDatabase(name, steps, newImageData) {
                 const transaction = db.transaction([STORE_NAME], 'readwrite');
                 const store = transaction.objectStore(STORE_NAME);
                 const request = store.get(currentEditTaskId);
 
-
                 request.onsuccess = (event) => {
                     const task = event.target.result;
 
-
                     if (task) {
-                        const oldSteps = task.steps;
-                        const newStepTexts = stepsText.split('\n')
-                            .map(step => step.trim())
-                            .filter(step => step.length > 0);
-
-
-                        if (newStepTexts.length === 0) {
-                            showStatusMessage('Por favor, insira pelo menos um passo válido', 'error');
-                            return;
-                        }
-
-
-                        // Tentar preservar o estado de conclusão dos passos que mantêm o mesmo texto
-                        const newSteps = newStepTexts.map(text => {
-                            const existingStep = oldSteps.find(step => step.text === text);
-                            return existingStep || { text, completed: false };
+                        // Preservar status de conclusão dos passos existentes
+                        const updatedSteps = steps.map((newStep, index) => {
+                            // Se o passo já existia, manter seu status
+                            if (task.steps[index]) {
+                                return {
+                                    text: newStep.text,
+                                    completed: task.steps[index].completed
+                                };
+                            }
+                            // Novos passos começam não concluídos
+                            return newStep;
                         });
 
-
+                        // Atualizar dados da tarefa
                         task.name = name;
-                        task.steps = newSteps;
-                        task.completed = newSteps.every(step => step.completed);
+                        task.steps = updatedSteps;
 
+                        // Atualizar imagem apenas se uma nova foi fornecida
+                        // Processar imagem
+                        if (newImageData === 'REMOVE_IMAGE') {
+                            // Remover imagem
+                            task.image = null;
+                        } else if (newImageData !== null) {
+                            // Nova imagem fornecida
+                            task.image = newImageData;
+                        }
+                        // Se newImageData for null, manter imagem existente (não faz nada)
+
+                        // Recalcular se a tarefa está completa
+                        task.completed = task.steps.every(step => step.completed);
 
                         const updateRequest = store.put(task);
 
-
                         updateRequest.onsuccess = () => {
+                            showStatusMessage('Cronograma atualizado com sucesso!');
                             closeModal();
                             loadTasks();
-                            showStatusMessage('Cronograma atualizado com sucesso!');
                         };
 
-
                         updateRequest.onerror = (event) => {
-                            console.error('Erro ao atualizar o cronograma:', event.target.error);
-                            showStatusMessage('Erro ao atualizar o cronograma', 'error');
+                            console.error('Erro ao atualizar cronograma:', event.target.error);
+                            showStatusMessage('Erro ao atualizar cronograma', 'error');
                         };
                     }
                 };
 
-
                 request.onerror = (event) => {
-                    console.error('Erro ao obter o cronograma para edição:', event.target.error);
-                    showStatusMessage('Erro ao obter o cronograma para edição', 'error');
+                    console.error('Erro ao obter cronograma para edição:', event.target.error);
+                    showStatusMessage('Erro ao obter cronograma para edição', 'error');
                 };
             }
 
@@ -2537,6 +2755,22 @@ textarea {
                     };
 
                     speechSynthesis.speak(currentUtterance);
+                }
+            }
+
+            // Função para remover imagem atual
+            function removeCurrentImage() {
+                if (confirm('Tem certeza que deseja remover a imagem atual?')) {
+                    // Limpar preview
+                    currentImagePreview.innerHTML = '<p>Nenhuma imagem definida</p>';
+
+                    // Limpar input de arquivo
+                    editTaskImageInput.value = '';
+
+                    // Marcar que a imagem deve ser removida
+                    window.removeImageFlag = true;
+
+                    showStatusMessage('Imagem marcada para remoção. Clique em "Salvar" para confirmar.', 'success');
                 }
             }
 
