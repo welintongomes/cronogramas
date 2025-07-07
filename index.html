@@ -702,6 +702,58 @@
             display: none;
         }
 
+        .camera-section {
+            margin: 10px 0;
+        }
+
+        .camera-btn,
+        .gallery-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 16px;
+        }
+
+        .camera-btn:hover,
+        .gallery-btn:hover {
+            background-color: #45a049;
+        }
+
+        .image-preview {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .image-preview img {
+            max-width: 200px;
+            max-height: 150px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+
+        .captured-image {
+            position: relative;
+            display: inline-block;
+        }
+
+        .remove-image-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
         @media (max-width: 768px) {
             #createTaskBtn {
                 position: fixed;
@@ -829,7 +881,17 @@
 
         <div class="form-group">
             <label for="taskImage">Imagem do Cronograma (opcional):</label>
-            <input type="file" id="taskImage" accept="image/*">
+            <!-- Por este conjunto -->
+            <div class="camera-section">
+                <button type="button" id="cameraBtn" class="camera-btn">
+                    📷 Tirar Foto
+                </button>
+                <button type="button" id="galleryBtn" class="gallery-btn">
+                    🖼️ Selecionar da Galeria
+                </button>
+                <input type="file" id="taskImage" accept="image/*" style="display: none;">
+                <div id="imagePreview" class="image-preview"></div>
+            </div>
         </div>
 
 
@@ -914,7 +976,17 @@
                 </div>
                 <div class="form-group">
                     <label for="editTaskImage">Imagem do Cronograma (opcional):</label>
-                    <input type="file" id="editTaskImage" accept="image/*">
+                    <!-- Por este conjunto -->
+                    <div class="camera-section">
+                        <button type="button" id="editCameraBtn" class="camera-btn">
+                            📷 Tirar Foto
+                        </button>
+                        <button type="button" id="editGalleryBtn" class="gallery-btn">
+                            🖼️ Selecionar da Galeria
+                        </button>
+                        <input type="file" id="editTaskImage" accept="image/*" style="display: none;">
+                        <div id="editImagePreview" class="image-preview"></div>
+                    </div>
                     <div id="currentImagePreview" style="margin-top: 10px;"></div>
                 </div>
 
@@ -975,7 +1047,11 @@
             // Adicionar no início do script, junto com as outras variáveis
             let isEditModalFirstAudioInput = true;
             let isEditModalRecording = false;
-
+            //variaveis para controlar a camera do celular
+            // Variáveis para câmera
+            let capturedImageData = null;
+            let editCapturedImageData = null;
+            let currentStream = null;
             // Abrir conexão com o banco de dados
             const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -1736,13 +1812,32 @@
                     .map(step => ({ text: step, completed: false }));
                 // Processar imagem se fornecida
                 let imageData = null;
-                if (taskImageInput.files && taskImageInput.files[0]) {
+                if (capturedImageData) {
+                    // Usar imagem capturada
+                    const task = {
+                        name,
+                        steps,
+                        image: capturedImageData,
+                        createdAt: new Date().toISOString(),
+                        completed: false
+                    };
+
+                    saveTask(task);
+
+                    // Limpar os campos
+                    taskNameInput.value = '';
+                    taskStepsInput.value = '';
+                    taskImageInput.value = '';
+                    capturedImageData = null;
+                    removeImage('imagePreview');
+                    isFirstAudioInput = true;
+                } else if (taskImageInput.files && taskImageInput.files[0]) {
+                    // Processar arquivo selecionado da galeria
                     const file = taskImageInput.files[0];
                     const reader = new FileReader();
 
                     reader.onload = function (e) {
-                        imageData = e.target.result;
-
+                        const imageData = e.target.result;
                         const task = {
                             name,
                             steps,
@@ -2306,89 +2401,10 @@
                 isEditModalFirstAudioInput = true;
                 isEditModalRecording = false;
                 window.removeImageFlag = false; // Limpar flag de remoção
+                editCapturedImageData = null;
+                removeImage('editImagePreview');
             }
 
-
-
-            // function saveTaskChanges() {
-            //     if (!currentEditTaskId) return;
-
-            //     const name = editTaskNameInput.value.trim();
-            //     if (!name) {
-            //         showStatusMessage('Por favor, insira um nome para o cronograma', 'error');
-            //         return;
-            //     }
-
-            //     const stepsText = editTaskStepsInput.value.trim();
-            //     if (!stepsText) {
-            //         showStatusMessage('Por favor, insira pelo menos um passo', 'error');
-            //         return;
-            //     }
-
-            //     const imageInput = document.getElementById('editTaskImage');
-            //     const file = imageInput?.files?.[0]; // Pode não existir
-
-            //     const transaction = db.transaction([STORE_NAME], 'readwrite');
-            //     const store = transaction.objectStore(STORE_NAME);
-            //     const request = store.get(currentEditTaskId);
-
-            //     request.onsuccess = (event) => {
-            //         const task = event.target.result;
-
-            //         if (task) {
-            //             const oldSteps = task.steps;
-            //             const newStepTexts = stepsText.split('\n')
-            //                 .map(step => step.trim())
-            //                 .filter(step => step.length > 0);
-
-            //             if (newStepTexts.length === 0) {
-            //                 showStatusMessage('Por favor, insira pelo menos um passo válido', 'error');
-            //                 return;
-            //             }
-
-            //             // Preservar estado de conclusão dos passos existentes
-            //             const newSteps = newStepTexts.map(text => {
-            //                 const existingStep = oldSteps.find(step => step.text === text);
-            //                 return existingStep || { text, completed: false };
-            //             });
-
-            //             task.name = name;
-            //             task.steps = newSteps;
-            //             task.completed = newSteps.every(step => step.completed);
-
-            //             if (file) {
-            //                 const reader = new FileReader();
-            //                 reader.onload = function (e) {
-            //                     task.image = e.target.result; // Salva imagem como base64
-            //                     saveTaskToStore(store, task);
-            //                 };
-            //                 reader.readAsDataURL(file);
-            //             } else {
-            //                 // Não mexe na imagem atual
-            //                 saveTaskToStore(store, task);
-            //             }
-            //         }
-            //     };
-
-            //     request.onerror = (event) => {
-            //         console.error('Erro ao obter o cronograma para edição:', event.target.error);
-            //         showStatusMessage('Erro ao obter o cronograma para edição', 'error');
-            //     };
-            // }
-
-            // // função auxiliar para salvar a task atualizada no IndexedDB
-            // function saveTaskToStore(store, task) {
-            //     const updateRequest = store.put(task);
-            //     updateRequest.onsuccess = () => {
-            //         closeModal();
-            //         loadTasks();
-            //         showStatusMessage('Cronograma atualizado com sucesso!');
-            //     };
-            //     updateRequest.onerror = (event) => {
-            //         console.error('Erro ao atualizar o cronograma:', event.target.error);
-            //         showStatusMessage('Erro ao atualizar o cronograma', 'error');
-            //     };
-            // }
             function saveTaskChanges() {
                 if (!currentEditTaskId) return;
 
@@ -2418,22 +2434,23 @@
 
                 // PRIMEIRO: Processar imagem se houver
                 // PRIMEIRO: Processar imagem se houver
-                if (editTaskImageInput.files && editTaskImageInput.files[0]) {
+                if (editCapturedImageData) {
+                    // Usar imagem capturada
+                    updateTaskInDatabase(name, steps, editCapturedImageData);
+                } else if (editTaskImageInput.files && editTaskImageInput.files[0]) {
+                    // Processar arquivo da galeria
                     const file = editTaskImageInput.files[0];
                     const reader = new FileReader();
 
                     reader.onload = function (e) {
                         const imageData = e.target.result;
-                        // Chamar função para salvar com nova imagem
                         updateTaskInDatabase(name, steps, imageData);
                     };
 
                     reader.readAsDataURL(file);
                 } else if (window.removeImageFlag) {
-                    // Remover imagem existente
                     updateTaskInDatabase(name, steps, 'REMOVE_IMAGE');
                 } else {
-                    // Salvar sem nova imagem (manter existente)
                     updateTaskInDatabase(name, steps, null);
                 }
             }
@@ -2727,6 +2744,16 @@
 
             // Inicializar a aplicação
             document.addEventListener('DOMContentLoaded', () => {
+                // Adicione estas linhas no DOMContentLoaded
+                document.getElementById('cameraBtn').addEventListener('click', takePhoto);
+                document.getElementById('galleryBtn').addEventListener('click', () => {
+                    document.getElementById('taskImage').click();
+                });
+
+                document.getElementById('editCameraBtn').addEventListener('click', takePhotoEdit);
+                document.getElementById('editGalleryBtn').addEventListener('click', () => {
+                    document.getElementById('editTaskImage').click();
+                });
                 console.log('Aplicação inicializada');
                 // Limpeza quando sair da página
                 window.addEventListener('beforeunload', stopAudioSequence);
@@ -3001,6 +3028,178 @@
             console.log('Pausa após título:', PAUSE_AFTER_TITLE + 'ms');
             console.log('Pausa entre steps:', PAUSE_BETWEEN_STEPS + 'ms');
 
+            //funçoes para captura camera
+            // Função para verificar suporte à câmera
+            function checkCameraSupport() {
+                return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            }
+
+            // Função para tirar foto (tela principal)
+            async function takePhoto() {
+                if (!checkCameraSupport()) {
+                    alert('Câmera não suportada neste navegador');
+                    return;
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' } // Câmera traseira por padrão
+                    });
+
+                    showCameraModal(stream, false);
+                } catch (error) {
+                    console.error('Erro ao acessar câmera:', error);
+                    alert('Erro ao acessar a câmera. Verifique as permissões.');
+                }
+            }
+
+            // Função para tirar foto (modal de edição)
+            async function takePhotoEdit() {
+                if (!checkCameraSupport()) {
+                    alert('Câmera não suportada neste navegador');
+                    return;
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'environment' }
+                    });
+
+                    showCameraModal(stream, true);
+                } catch (error) {
+                    console.error('Erro ao acessar câmera:', error);
+                    alert('Erro ao acessar a câmera. Verifique as permissões.');
+                }
+            }
+
+            // Função para mostrar modal da câmera
+            function showCameraModal(stream, isEditMode) {
+                currentStream = stream;
+
+                // Criar modal da câmera
+                const cameraModal = document.createElement('div');
+                cameraModal.id = 'cameraModal';
+                cameraModal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100001;
+    `;
+
+                cameraModal.innerHTML = `
+        <div style="text-align: center; color: white;">
+            <video id="cameraVideo" autoplay style="max-width: 90%; max-height: 70%; border-radius: 10px;"></video>
+            <br><br>
+            <button id="captureBtn" style="background: #4CAF50; color: white; border: none; padding: 15px 30px; border-radius: 5px; font-size: 16px; margin: 10px; cursor: pointer;">
+                📸 Capturar
+            </button>
+            <button id="switchCameraBtn" style="background: #2196F3; color: white; border: none; padding: 15px 30px; border-radius: 5px; font-size: 16px; margin: 10px; cursor: pointer;">
+                🔄 Trocar Câmera
+            </button>
+            <button id="closeCameraBtn" style="background: #f44336; color: white; border: none; padding: 15px 30px; border-radius: 5px; font-size: 16px; margin: 10px; cursor: pointer;">
+                ❌ Fechar
+            </button>
+        </div>
+    `;
+
+                document.body.appendChild(cameraModal);
+
+                const video = document.getElementById('cameraVideo');
+                video.srcObject = stream;
+
+                // Event listeners do modal da câmera
+                document.getElementById('captureBtn').addEventListener('click', () => {
+                    captureImage(video, isEditMode);
+                    closeCameraModal();
+                });
+
+                document.getElementById('switchCameraBtn').addEventListener('click', () => {
+                    switchCamera(isEditMode);
+                });
+
+                document.getElementById('closeCameraBtn').addEventListener('click', closeCameraModal);
+            }
+
+            // Função para capturar imagem
+            function captureImage(video, isEditMode) {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+
+                const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+                if (isEditMode) {
+                    editCapturedImageData = imageData;
+                    showImagePreview(imageData, 'editImagePreview');
+                } else {
+                    capturedImageData = imageData;
+                    showImagePreview(imageData, 'imagePreview');
+                }
+            }
+
+            // Função para mostrar preview da imagem
+            function showImagePreview(imageData, containerId) {
+                const container = document.getElementById(containerId);
+                container.innerHTML = `
+        <div class="captured-image">
+            <img src="${imageData}" alt="Foto capturada">
+            <button class="remove-image-btn" onclick="removeImage('${containerId}')">×</button>
+        </div>
+    `;
+            }
+
+            // Função para remover imagem capturada
+            function removeImage(containerId) {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+
+                if (containerId === 'imagePreview') {
+                    capturedImageData = null;
+                } else {
+                    editCapturedImageData = null;
+                }
+            }
+
+            // Função para fechar modal da câmera
+            function closeCameraModal() {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
+                }
+
+                const modal = document.getElementById('cameraModal');
+                if (modal) {
+                    modal.remove();
+                }
+            }
+
+            // Função para trocar câmera
+            async function switchCamera(isEditMode) {
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: 'user' } // Câmera frontal
+                    });
+
+                    const video = document.getElementById('cameraVideo');
+                    video.srcObject = stream;
+                    currentStream = stream;
+                } catch (error) {
+                    console.error('Erro ao trocar câmera:', error);
+                }
+            }
         </script>
 </body>
 
