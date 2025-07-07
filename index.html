@@ -1052,6 +1052,7 @@
             let capturedImageData = null;
             let editCapturedImageData = null;
             let currentStream = null;
+            let currentFacingMode = 'environment'; // Adicionar esta variável
             // Abrir conexão com o banco de dados
             const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -3183,19 +3184,28 @@
             }
 
             // Função para trocar câmera
+            // Função para trocar câmera
             async function switchCamera(isEditMode) {
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
                 }
 
                 try {
+                    // Alternar entre câmeras
+                    currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'user' } // Câmera frontal
+                        video: { facingMode: currentFacingMode }
                     });
 
                     const video = document.getElementById('cameraVideo');
                     video.srcObject = stream;
                     currentStream = stream;
+
+                    // Atualizar texto do botão
+                    const switchBtn = document.getElementById('switchCameraBtn');
+                    switchBtn.textContent = currentFacingMode === 'environment' ? '🤳 Câmera Frontal' : '📷 Câmera Traseira';
+
                 } catch (error) {
                     console.error('Erro ao trocar câmera:', error);
                 }
