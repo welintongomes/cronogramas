@@ -215,7 +215,7 @@
             background-color: rgba(0, 0, 0, 0.5);
             justify-content: center;
             align-items: center;
-            z-index: 1000;
+            z-index: 10002;
         }
 
 
@@ -407,7 +407,7 @@
             transition: all 0.3s;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 5px;
         }
 
         .audio-btn:hover {
@@ -593,12 +593,12 @@
         }
 
         /* estilo para botão de pesquisa rapida */
-        #voiceSearchBtn {
+        /* #voiceSearchBtn {
             font-size: 11px;
             width: 94%;
             cursor: pointer;
             margin-left: -15px;
-        }
+        } */
 
 
         /* Estilos para expandir/recolher cronogramas */
@@ -689,8 +689,118 @@
         }
 
         .botoesExpandir {
+            gap: 10px;
             display: flex;
-            justify-content: space-around;
+            justify-content: flex-start;
+        }
+
+        #toggleContainerBtn {
+            display: none;
+        }
+
+        #resetGuideBtn {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            #createTaskBtn {
+                position: fixed;
+                bottom: 51.1%;
+                right: 92.1%;
+                z-index: 1000;
+                padding: 29px 7.3px;
+                background-color: #2b8a3e;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+
+            #audioBtn {
+                position: fixed;
+                bottom: 42%;
+                right: 92%;
+                z-index: 1000;
+                padding: 21px 2px;
+                background-color: #0d6efd;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+            }
+
+
+            #voiceSearchBtn {
+                position: fixed;
+                bottom: 31.1%;
+                right: 92%;
+                z-index: 9999;
+                padding: 28px 5px;
+                background-color: #6f42c1;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 16px;
+            }
+
+            .task-item {
+                background-color: var(--light-color);
+                padding: 0px 0px 0px 0px;
+                border-radius: var(--border-radius);
+                margin-bottom: 10px;
+                display: flex;
+                align-items: stretch;
+            }
+
+            .task-item.expanded {
+                background-color: var(--light-color);
+                padding: 0px 0px 0px 0px;
+                border-radius: var(--border-radius);
+                margin-bottom: 10px;
+                display: flex;
+                align-items: stretch;
+            }
+
+            #searchInput {
+                position: relative;
+                right: -37.4px;
+                display: flex;
+                width: 86.7%;
+                padding: 7px 10px 10px 48px;
+                border-radius: 20px;
+                border: 1px solid #ccc;
+                font-size: 16px;
+            }
+
+            #clearSearchBtn {
+                position: absolute;
+                left: 51px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: #999;
+                cursor: pointer;
+                font-size: 16px;
+                display: none;
+            }
+
+            .task-actions {
+                padding: 7px 7px 3px 0px;
+                display: flex;
+                justify-content: flex-start;
+                gap: 8px;
+                margin-bottom: 2px;
+                flex-direction: row-reverse;
+            }
+
+            .task-content {
+                padding: 0px 0px 0px 19px;
+            }
+
+
+
         }
     </style>
 </head>
@@ -700,37 +810,40 @@
     <h1>Cronogramas</h1>
 
 
-    <div class="container">
+    <!-- Botão para mostrar a guia -->
+    <button id="toggleContainerBtn">Ocultar Guia</button>
+    <button id="resetGuideBtn">Reiniciar Guia</button>
+
+    <!-- Container oculto inicialmente -->
+    <div class="container" style="display: none;">
         <div class="form-group">
             <label for="taskName">Nome do Cronograma:</label>
-
             <input type="text" id="taskName" placeholder="Ex: Como fazer panquecas">
         </div>
-
 
         <div class="form-group">
             <label for="taskSteps">Passos a serem executados (um por linha):</label>
             <textarea id="taskSteps"
                 placeholder="1 xícara de farinha de trigo&#10;1 colher de sopa de açúcar&#10;1 colher de sopa de fermento em pó&#10;Etc."></textarea>
         </div>
+
         <div class="form-group">
             <label for="taskImage">Imagem do Cronograma (opcional):</label>
             <input type="file" id="taskImage" accept="image/*">
         </div>
 
-        <div class="create-btn-row">
 
-            <div class="audio-btn-container">
-                <button id="audioBtn" class="audio-btn">
-                    <span id="audioIcon">🎤</span>
-                    <span id="audioBtnText">Falar</span>
-                </button>
-            </div>
-            <button id="createTaskBtn">Criar Cronograma</button>
-        </div>
-        <div id="audioStatus" class="audio-status"></div>
     </div>
-
+    <div class="create-btn-row">
+        <!-- <div class="audio-btn-container"> -->
+        <button id="audioBtn" class="audio-btn">
+            <span id="audioIcon">🎤</span>
+            <span id="audioBtnText"></span>
+        </button>
+        <!-- </div> -->
+        <button id="createTaskBtn">➕</button>
+    </div>
+    <div id="audioStatus" class="audio-status"></div>
 
     <div id="statusMessage" class="status-message"></div>
     <!-- Adicionar barra de pesquisa acima da lista de tarefas -->
@@ -746,7 +859,7 @@
     <div class="view-mode-container">
         <div class="audio-btn-container">
         </div>
-        <button id="voiceSearchBtn" title="Pesquisar por voz">🎤 Busca Rápida</button>
+        <button id="voiceSearchBtn" title="Pesquisar por voz">🔍</button>
         <select id="viewModeSelect">
             <option value="compact">Modo Compacto (2 últimos)</option>
             <option value="all">Mostrar Todos</option>
@@ -811,7 +924,7 @@
                     <div class="audio-btn-container">
                         <button id="editAudioBtn" class="audio-btn">
                             <span id="editAudioIcon">🎤</span>
-                            <span id="editAudioBtnText">Falar</span>
+                            <span id="editAudioBtnText"></span>
                         </button>
                     </div>
                 </div>
@@ -935,7 +1048,7 @@
                 isEditModalRecording = false;
                 editAudioBtn.classList.remove('recording');
                 editAudioIcon.textContent = '🎤';
-                editAudioBtnText.textContent = 'Falar';
+                editAudioBtnText.textContent = '';
             }
 
             function handleEditModalAudioInput(text) {
@@ -1066,6 +1179,22 @@
                 loadTasks();
             });
 
+            const resetBtn = document.getElementById('resetGuideBtn');
+
+            resetBtn.addEventListener('click', () => {
+                // Limpa todos os campos
+                taskNameInput.value = '';
+                taskStepsInput.value = '';
+                taskImageInput.value = '';
+
+                // Reinicia o estado do áudio
+                isFirstAudioInput = true;
+
+                // Opcional: inicia a gravação automaticamente
+                // toggleAudioRecording();
+            });
+
+
 
             clearSearchBtn.addEventListener('click', function () {
                 searchInput.value = '';
@@ -1142,7 +1271,34 @@
             // Event Listeners
             //event listener para editar por audio
             editAudioBtn.addEventListener('click', toggleEditModalAudioRecording);
-            createTaskBtn.addEventListener('click', createTask);
+            createTaskBtn.addEventListener('click', () => {
+                const container = document.querySelector('.container');
+                const toggleBtn = document.getElementById('toggleContainerBtn');
+                const resetBtn = document.getElementById('resetGuideBtn');
+
+                if (resetBtn) {
+                    resetBtn.style.display = 'inline-block'; // ou flex
+                }
+
+
+                // Se a guia estiver oculta, exibe ela primeiro
+                if (container.style.display === 'none') {
+                    container.style.display = 'block';
+
+                    // Mostra o botão de ocultar
+                    if (toggleBtn) {
+                        toggleBtn.style.display = 'inline-block'; // ou 'flex', dependendo do seu layout
+                        toggleBtn.textContent = 'Ocultar Guia';
+                    }
+
+                    return; // Não cria ainda
+                }
+
+                // Se já estiver visível, cria o cronograma normalmente
+                createTask();
+            });
+
+
             exportBtn.addEventListener('click', exportTasks);
             importInput.addEventListener('change', importTasks);
             document.getElementById('importBtn').addEventListener('click', () => {
@@ -1219,16 +1375,41 @@
             }
 
             function toggleAudioRecording() {
-                if (!recognition && !initSpeechRecognition()) {
-                    return;
+                const container = document.querySelector('.container');
+                const toggleBtn = document.getElementById('toggleContainerBtn');
+                const resetBtn = document.getElementById('resetGuideBtn');
+
+                if (resetBtn) {
+                    resetBtn.style.display = 'inline-block'; // ou flex
                 }
 
+
+                // Se a guia estiver oculta, mostra ela e o botão de fechar
+                if (container.style.display === 'none') {
+                    container.style.display = 'block';
+
+                    if (toggleBtn) {
+                        toggleBtn.style.display = 'inline-block'; // ou 'flex' se preferir
+                        toggleBtn.textContent = 'Ocultar Guia';
+                    }
+
+                    // Aguarda a exibição antes de continuar
+                    setTimeout(() => {
+                        toggleAudioRecording(); // chama novamente após exibir
+                    }, 300);
+
+                    return; // Sai da execução atual
+                }
+
+                // Agora a lógica normal de gravar ou parar
                 if (isRecording) {
                     stopRecording();
                 } else {
                     startRecording();
                 }
             }
+
+
 
             function startRecording() {
                 try {
@@ -1263,7 +1444,7 @@
                 isRecording = false;
                 audioBtn.classList.remove('recording');
                 audioIcon.textContent = '🎤';
-                audioBtnText.textContent = 'Falar';
+                audioBtnText.textContent = '';
             }
 
             function handleAudioInput(text) {
@@ -2094,7 +2275,7 @@
                         // Resetar visual do botão
                         editAudioBtn.classList.remove('recording');
                         editAudioIcon.textContent = '🎤';
-                        editAudioBtnText.textContent = 'Falar';
+                        editAudioBtnText.textContent = '';
                         hideEditAudioStatus();
 
                         taskModal.style.display = 'flex';
@@ -2796,6 +2977,24 @@
 
                 return queue;
             }
+
+            const toggleBtn = document.getElementById('toggleContainerBtn');
+            const container = document.querySelector('.container');
+
+            // Lógica para esconder a guia
+            toggleBtn.addEventListener('click', () => {
+                container.style.display = 'none';
+                toggleBtn.style.display = 'none'; // Oculta o botão após esconder a guia
+                if (resetBtn) {
+                    resetBtn.style.display = 'none';
+                }
+            });
+
+            // Garante que o container continue oculto ao recarregar a página
+            window.addEventListener('DOMContentLoaded', () => {
+                container.style.display = 'none';
+                toggleBtn.textContent = 'Mostrar Guia';
+            });
 
             // Opcional: Mostrar configurações no console
             console.log('Dispositivo detectado:', isMobileDevice() ? 'Mobile' : 'Desktop');
