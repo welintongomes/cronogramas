@@ -133,6 +133,7 @@
 
 
         .task-name {
+            font-size: 28px;
             font-weight: bold;
             margin-bottom: 5px;
         }
@@ -622,6 +623,22 @@
             width: fit-content;
         }
 
+        .colorir {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px 0 5px 0;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: fit-content;
+        }
+
         .expand-btn:hover {
             background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
             transform: translateY(-1px);
@@ -692,6 +709,8 @@
             gap: 10px;
             display: flex;
             justify-content: flex-start;
+            flex-direction: row;
+            align-items: baseline;
         }
 
         #toggleContainerBtn {
@@ -726,7 +745,12 @@
         .image-preview {
             margin-top: 10px;
             text-align: center;
+            display: flex;
+            overflow-x: auto;
+            gap: 10px;
+            padding: 10px 0;
         }
+
 
         .image-preview img {
             max-width: 200px;
@@ -753,6 +777,66 @@
             cursor: pointer;
             font-size: 12px;
         }
+
+        /* css par school de imagens */
+        .task-images-scroll {
+            display: flex;
+            overflow-x: auto;
+            gap: 10px;
+            padding: 10px 0;
+            margin-bottom: 10px;
+            max-width: 100%;
+        }
+
+        .task-images-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .task-images-scroll::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+
+        .scroll-image {
+            max-height: 150px;
+            max-width: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        /* modal imagem */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 999999;
+            padding-top: 60px;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+
+        .image-modal-content {
+            margin: auto;
+            display: block;
+            max-width: 90%;
+            max-height: 80vh;
+            border-radius: 8px;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 30px;
+            right: 45px;
+            color: #fff;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
 
         @media (max-width: 768px) {
             #createTaskBtn {
@@ -880,8 +964,7 @@
         </div>
 
         <div class="form-group">
-            <label for="taskImage">Imagem do Cronograma (opcional):</label>
-            <!-- Por este conjunto -->
+            <label for="taskImage">Imagens do Cronograma (opcional):</label>
             <div class="camera-section">
                 <button type="button" id="cameraBtn" class="camera-btn">
                     📷 Tirar Foto
@@ -889,8 +972,10 @@
                 <button type="button" id="galleryBtn" class="gallery-btn">
                     🖼️ da Galeria
                 </button>
-                <input type="file" id="taskImage" accept="image/*" style="display: none;">
+                <input type="file" id="taskImage" accept="image/*" multiple style="display: none;">
                 <div id="imagePreview" class="image-preview"></div>
+                <div class="images-count" id="imagesCount" style="margin-top: 10px; font-size: 14px; color: #666;">
+                </div>
             </div>
         </div>
 
@@ -975,8 +1060,7 @@
                     <textarea id="editTaskSteps"></textarea>
                 </div>
                 <div class="form-group">
-                    <label for="editTaskImage">Imagem do Cronograma (opcional):</label>
-                    <!-- Por este conjunto -->
+                    <label for="editTaskImage">Imagens do Cronograma (opcional):</label>
                     <div class="camera-section">
                         <button type="button" id="editCameraBtn" class="camera-btn">
                             📷 Tirar Foto
@@ -984,8 +1068,10 @@
                         <button type="button" id="editGalleryBtn" class="gallery-btn">
                             🖼️ da Galeria
                         </button>
-                        <input type="file" id="editTaskImage" accept="image/*" style="display: none;">
+                        <input type="file" id="editTaskImage" accept="image/*" multiple style="display: none;">
                         <div id="editImagePreview" class="image-preview"></div>
+                        <div class="images-count" id="editImagesCount"
+                            style="margin-top: 10px; font-size: 14px; color: #666;"></div>
                     </div>
                     <div id="currentImagePreview" style="margin-top: 10px;"></div>
                 </div>
@@ -1003,6 +1089,19 @@
                 <div id="editAudioStatus" class="audio-status"></div>
 
             </div>
+
+        </div>
+        <!-- Modal para imagem -->
+        <!-- <div id="imageModal" class="image-modal">
+  <span class="close-modal">&times;</span>
+  <img class="image-modal-content" id="modalImage">
+</div> -->
+
+        <!-- Modal de visualização de imagem ampliada -->
+        <div id="imageModal" class="image-modal" style="display: none;">
+            <span class="close-modal"
+                style="position: absolute; top: 15px; right: 25px; color: white; font-size: 30px; cursor: pointer;">&times;</span>
+            <img id="modalImage" class="image-modal-content" style="max-width: 90%; max-height: 90%;">
         </div>
 
 
@@ -1049,8 +1148,8 @@
             let isEditModalRecording = false;
             //variaveis para controlar a camera do celular
             // Variáveis para câmera
-            let capturedImageData = null;
-            let editCapturedImageData = null;
+            let capturedImagesData = []; // Array para múltiplas imagens
+            let editCapturedImagesData = []; // Array para múltiplas imagens no modo edição
             let currentStream = null;
             let currentFacingMode = 'environment'; // Adicionar esta variável
             // Abrir conexão com o banco de dados
@@ -1270,6 +1369,16 @@
                 // Opcional: inicia a gravação automaticamente
                 // toggleAudioRecording();
             });
+
+            const imageModal = document.getElementById('imageModal');
+            const modalImage = document.getElementById('modalImage');
+            const closeModalBtn = imageModal.querySelector('.close-modal');
+
+            // Fecha o modal quando clica no botão "×"
+            closeModalBtn.addEventListener('click', () => {
+                imageModal.style.display = 'none';
+            });
+
 
 
 
@@ -1811,70 +1920,54 @@
                     .map(step => step.trim())
                     .filter(step => step.length > 0)
                     .map(step => ({ text: step, completed: false }));
-                // Processar imagem se fornecida
-                let imageData = null;
-                if (capturedImageData) {
-                    // Usar imagem capturada
-                    const task = {
-                        name,
-                        steps,
-                        image: capturedImageData,
-                        createdAt: new Date().toISOString(),
-                        completed: false
-                    };
+                // Processar imagens se fornecidas
+                let imagesData = [];
 
-                    saveTask(task);
+                // Adicionar imagens capturadas
+                if (capturedImagesData.length > 0) {
+                    imagesData = [...capturedImagesData];
+                }
 
-                    // Limpar os campos
-                    taskNameInput.value = '';
-                    taskStepsInput.value = '';
-                    taskImageInput.value = '';
-                    capturedImageData = null;
-                    removeImage('imagePreview');
-                    isFirstAudioInput = true;
-                } else if (taskImageInput.files && taskImageInput.files[0]) {
-                    // Processar arquivo selecionado da galeria
-                    const file = taskImageInput.files[0];
-                    const reader = new FileReader();
+                // Adicionar imagens da galeria
+                if (taskImageInput.files && taskImageInput.files.length > 0) {
+                    const filePromises = Array.from(taskImageInput.files).map(file => {
+                        return new Promise((resolve) => {
+                            const reader = new FileReader();
+                            reader.onload = function (e) {
+                                resolve(e.target.result);
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    });
 
-                    reader.onload = function (e) {
-                        const imageData = e.target.result;
+                    Promise.all(filePromises).then(galleryImages => {
+                        imagesData = [...imagesData, ...galleryImages];
+
                         const task = {
                             name,
                             steps,
-                            image: imageData,
+                            images: imagesData, // Mudança: 'images' em vez de 'image'
                             createdAt: new Date().toISOString(),
                             completed: false
                         };
 
                         saveTask(task);
-
-                        // Limpar os campos
-                        taskNameInput.value = '';
-                        taskStepsInput.value = '';
-                        taskImageInput.value = '';
-                        isFirstAudioInput = true;
-                    };
-
-                    reader.readAsDataURL(file);
-                } else {
-                    // Sem imagem, continuar normalmente
-                    const task = {
-                        name,
-                        steps,
-                        image: null,
-                        createdAt: new Date().toISOString(),
-                        completed: false
-                    };
-
-                    saveTask(task);
-
-                    // Limpar os campos
-                    taskNameInput.value = '';
-                    taskStepsInput.value = '';
-                    taskImageInput.value = '';
-                    isFirstAudioInput = true;
+                        clearCreateForm();
+                    });
+                    return; // Sair da função para aguardar o Promise
                 }
+
+                // Se não há imagens da galeria, continuar normalmente
+                const task = {
+                    name,
+                    steps,
+                    images: imagesData, // Mudança: 'images' em vez de 'image'
+                    createdAt: new Date().toISOString(),
+                    completed: false
+                };
+
+                saveTask(task);
+                clearCreateForm();
 
 
                 if (steps.length === 0) {
@@ -1882,6 +1975,16 @@
                     return;
                 }
 
+            }
+
+            function clearCreateForm() {
+                taskNameInput.value = '';
+                taskStepsInput.value = '';
+                taskImageInput.value = '';
+                capturedImagesData = [];
+                document.getElementById('imagePreview').innerHTML = '';
+                updateImagesCount('imagesCount', 0);
+                isFirstAudioInput = true;
             }
 
 
@@ -2211,7 +2314,20 @@
 
             </div>
             <div class="task-content">
-    ${task.image ? `<div class="task-image"><img src="${task.image}" alt="Imagem do cronograma" style="width: 100%; max-height: 350px; object-fit: contain; border-radius: 8px; margin-bottom: 10px;"></div>` : ''}
+                ${(task.images && task.images.length > 0) || task.image ? `
+    <div class="task-image-container">
+        <div class="task-images-scroll" style="display: none;">
+            ${(task.images && task.images.length > 0)
+                                ? task.images.map((img, index) => `
+                    <img src="${img}" alt="Imagem ${index + 1}" class="scroll-image">
+                `).join('')
+                                : `<img src="${task.image}" alt="Imagem do cronograma" class="scroll-image">`}
+        </div>
+
+    </div>
+` : ''}
+
+
     <div class="task-name">${task.highlighted || task.name}</div>
                 <div class="task-progress">
                     <div class="progress-bar" style="width: ${progressPercentage}%"></div>
@@ -2219,25 +2335,18 @@
                 <div class="task-info">
                     <small>Progresso: ${completedSteps}/${totalSteps} (${Math.round(progressPercentage)}%)</small>
                 </div>
-                
+
                 <!-- NOVO: Botão para expandir/recolher -->
-<div class="botoesExpandir">
+            <div class="botoesExpandir">
                 <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
                     <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
                     <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
                 </button>
-                
-                ${task.image ? `
-    <div class="task-image-container">
-        <button class="toggle-image-btn expand-btn" data-taskid="${task.id}">
-            Mostrar imagem
-        </button>
-        <div class="task-image" style="display: none;">
-            <img src="${task.image}" alt="Imagem do cronograma" style="width: 100%; max-height: 600px; object-fit: contain; border-radius: 8px; margin-bottom: 10px;">
-        </div>
-    </div>
-` : ''}
-</div>
+                <button class="toggle-image-btn colorir" data-taskid="${task.id}">
+                Mostrar imagens
+                </button>
+
+                </div>
                 <!-- Os passos começam ocultos ou expandidos conforme o estado -->
                 <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
                     ${task.steps.map((step, index) => `
@@ -2247,10 +2356,36 @@
                         </div>
                     `).join('')}
                 </div>
-            </div>
+
         `;
 
                     taskList.appendChild(taskElement);
+                    // Event listener para clique nas imagens (abrir modal)
+                    const scrollImages = taskElement.querySelectorAll('.scroll-image');
+                    scrollImages.forEach(img => {
+                        img.addEventListener('click', () => {
+                            const modal = document.getElementById('imageModal');
+                            const modalImg = document.getElementById('modalImage');
+
+                            modal.style.display = 'block';
+                            modalImg.src = img.src;
+                        });
+                    });
+
+                    // Event listener para fechar o modal
+                    const modal = document.getElementById('imageModal');
+                    const closeBtn = modal.querySelector('.close-modal');
+                    closeBtn.addEventListener('click', () => {
+                        modal.style.display = 'none';
+                    });
+
+                    // Também fecha se clicar fora da imagem
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) {
+                            modal.style.display = 'none';
+                        }
+                    });
+
 
                     // Event listeners existentes para checkboxes
                     const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
@@ -2271,14 +2406,21 @@
                     const stepReadBtn = taskElement.querySelector('.step-read-btn');
                     const toggleImageBtn = taskElement.querySelector('.toggle-image-btn');
                     if (toggleImageBtn) {
-                        toggleImageBtn.addEventListener('click', () => {
-                            const imageContainer = taskElement.querySelector('.task-image');
-                            const isVisible = imageContainer.style.display === 'block';
+                        toggleImageBtn.addEventListener('click', (e) => {
+                            e.stopPropagation(); // evita conflitos com outros cliques
+                            const imageContainer = taskElement.querySelector('.task-images-scroll');
+                            if (!imageContainer) return; // não faz nada se não houver container
 
-                            imageContainer.style.display = isVisible ? 'none' : 'block';
-                            toggleImageBtn.textContent = isVisible ? 'Mostrar imagem' : 'Ocultar imagem';
+                            const isVisible = imageContainer.style.display === 'flex';
+                            imageContainer.style.display = isVisible ? 'none' : 'flex';
+                            toggleImageBtn.textContent = isVisible ? 'Mostrar imagens' : 'Ocultar imagens';
                         });
                     }
+
+
+
+
+
 
 
                     editBtn.addEventListener('click', () => openEditModal(task.id));
@@ -2347,28 +2489,83 @@
                         editTaskNameInput.value = task.name;
                         editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
                         currentEditTaskId = taskId;
-                        // Mostrar imagem atual se existir
-                        if (task.image) {
-                            currentImagePreview.innerHTML = `
+
+                        // Mostrar imagens atuais se existirem (scroll e clique ampliado)
+                        if (task.images && task.images.length > 0) {
+                            let imagesHtml = `
         <div style="text-align: center;">
-            <p>Imagem atual:</p>
-            <img src="${task.image}" alt="Imagem atual" style="max-width: 200px; max-height: 150px; object-fit: cover; border-radius: 8px;">
-            <br><small>Selecione uma nova imagem para substituir</small>
-            <button type="button" onclick="removeCurrentImage()" style="background-color: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px;">
-                🗑️ Remover Imagem
-            </button>
+            <p>Imagens atuais:</p>
+            <div style="display: flex; overflow-x: auto; gap: 10px; padding: 10px 0;">
+    `;
+
+                            task.images.forEach((image, index) => {
+                                imagesHtml += `
+            <div style="position: relative; display: inline-block;">
+                <img src="${image}" 
+                     alt="Imagem ${index + 1}" 
+                     class="edit-scroll-image" 
+                     style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
+                <button type="button" onclick="removeExistingImage(${index})"
+                        style="position: absolute; top: -5px; right: -5px; background: red; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">❌</button>
+            </div>
+        `;
+                            });
+
+                            imagesHtml += `
+            </div>
+            <br><small>Adicione novas imagens ou remova as existentes</small>
         </div>
     `;
+
+                            currentImagePreview.innerHTML = imagesHtml;
+
+                            // 🔥 ADICIONAR EVENTO DE CLIQUE para ampliar imagem
+                            setTimeout(() => {
+                                const editImages = currentImagePreview.querySelectorAll('.edit-scroll-image');
+                                editImages.forEach(img => {
+                                    img.addEventListener('click', () => {
+                                        modalImage.src = img.src;
+                                        imageModal.style.display = 'block';
+                                    });
+                                });
+                            }, 0);
+                        }
+                        else if (task.image) {
+                            // Compatibilidade com versão antiga (uma imagem)
+                            currentImagePreview.innerHTML = `
+                    <div style="text-align: center;">
+                        <p>Imagem atual:</p>
+                        <img src="${task.image}" 
+                             alt="Imagem atual" 
+                             class="edit-scroll-image" 
+                             style="max-width: 200px; max-height: 150px; object-fit: cover; border-radius: 8px; cursor: pointer;">
+                        <br><small>Adicione novas imagens para substituir</small>
+                    </div>
+                `;
+
+                            // Clique para ampliar imagem única
+                            setTimeout(() => {
+                                const img = currentImagePreview.querySelector('.edit-scroll-image');
+                                if (img) {
+                                    img.addEventListener('click', () => {
+                                        modalImg.src = img.src;
+                                        modal.style.display = 'flex';
+                                    });
+                                }
+                            }, 0);
+
                         } else {
                             currentImagePreview.innerHTML = '<p>Nenhuma imagem definida</p>';
                         }
 
-                        // ADICIONAR ESTAS LINHAS:
+                        // Resetar arrays de imagens do modal
+                        editCapturedImagesData = [];
+                        document.getElementById('editImagePreview').innerHTML = '';
+                        updateImagesCount('editImagesCount', 0);
+
                         // Resetar variáveis de áudio do modal
                         isEditModalFirstAudioInput = true;
                         isEditModalRecording = false;
-
-                        // Resetar visual do botão
                         editAudioBtn.classList.remove('recording');
                         editAudioIcon.textContent = '🎤';
                         editAudioBtnText.textContent = '';
@@ -2381,6 +2578,28 @@
                 request.onerror = (event) => {
                     console.error('Erro ao obter o cronograma para edição:', event.target.error);
                     showStatusMessage('Erro ao obter o cronograma para edição', 'error');
+                };
+            }
+
+
+            function removeExistingImage(index) {
+                if (!currentEditTaskId) return;
+
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.get(currentEditTaskId);
+
+                request.onsuccess = (event) => {
+                    const task = event.target.result;
+                    if (task && task.images && task.images.length > index) {
+                        task.images.splice(index, 1);
+
+                        const updateRequest = store.put(task);
+                        updateRequest.onsuccess = () => {
+                            openEditModal(currentEditTaskId); // Recarregar modal
+                            showStatusMessage('Imagem removida com sucesso', 'success');
+                        };
+                    }
                 };
             }
 
@@ -2433,31 +2652,50 @@
                         return { text: stepText, completed: false }; // Por padrão, novos passos não concluídos
                     });
 
-                // PRIMEIRO: Processar imagem se houver
-                // PRIMEIRO: Processar imagem se houver
-                if (editCapturedImageData) {
-                    // Usar imagem capturada
-                    updateTaskInDatabase(name, steps, editCapturedImageData);
-                } else if (editTaskImageInput.files && editTaskImageInput.files[0]) {
-                    // Processar arquivo da galeria
-                    const file = editTaskImageInput.files[0];
-                    const reader = new FileReader();
+                // Processar imagens
+                let allImages = [];
 
-                    reader.onload = function (e) {
-                        const imageData = e.target.result;
-                        updateTaskInDatabase(name, steps, imageData);
-                    };
+                // Manter imagens existentes (se houver)
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const getRequest = store.get(currentEditTaskId);
 
-                    reader.readAsDataURL(file);
-                } else if (window.removeImageFlag) {
-                    updateTaskInDatabase(name, steps, 'REMOVE_IMAGE');
-                } else {
-                    updateTaskInDatabase(name, steps, null);
-                }
+                getRequest.onsuccess = (event) => {
+                    const currentTask = event.target.result;
+                    if (currentTask && currentTask.images) {
+                        allImages = [...currentTask.images];
+                    } else if (currentTask && currentTask.image) {
+                        allImages = [currentTask.image]; // Compatibilidade
+                    }
+
+                    // Adicionar novas imagens capturadas
+                    if (editCapturedImagesData.length > 0) {
+                        allImages = [...allImages, ...editCapturedImagesData];
+                    }
+
+                    // Processar imagens da galeria
+                    if (editTaskImageInput.files && editTaskImageInput.files.length > 0) {
+                        const filePromises = Array.from(editTaskImageInput.files).map(file => {
+                            return new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = function (e) {
+                                    resolve(e.target.result);
+                                };
+                                reader.readAsDataURL(file);
+                            });
+                        });
+
+                        Promise.all(filePromises).then(galleryImages => {
+                            allImages = [...allImages, ...galleryImages];
+                            updateTaskInDatabase(name, steps, allImages);
+                        });
+                    } else {
+                        updateTaskInDatabase(name, steps, allImages);
+                    }
+                };
             }
 
-            // NOVA FUNÇÃO AUXILIAR para salvar no banco
-            function updateTaskInDatabase(name, steps, newImageData) {
+            function updateTaskInDatabase(name, steps, imagesData) {
                 const transaction = db.transaction([STORE_NAME], 'readwrite');
                 const store = transaction.objectStore(STORE_NAME);
                 const request = store.get(currentEditTaskId);
@@ -2468,41 +2706,43 @@
                     if (task) {
                         // Preservar status de conclusão dos passos existentes
                         const updatedSteps = steps.map((newStep, index) => {
-                            // Se o passo já existia, manter seu status
                             if (task.steps[index]) {
                                 return {
                                     text: newStep.text,
                                     completed: task.steps[index].completed
                                 };
                             }
-                            // Novos passos começam não concluídos
-                            return newStep;
+                            return { ...newStep, completed: false }; // garantir que novos passos venham com completed: false
                         });
 
-                        // Atualizar dados da tarefa
                         task.name = name;
                         task.steps = updatedSteps;
 
-                        // Atualizar imagem apenas se uma nova foi fornecida
-                        // Processar imagem
-                        if (newImageData === 'REMOVE_IMAGE') {
-                            // Remover imagem
-                            task.image = null;
-                        } else if (newImageData !== null) {
-                            // Nova imagem fornecida
-                            task.image = newImageData;
+                        // Atualização das imagens
+                        if (imagesData === 'REMOVE_IMAGES') {
+                            task.images = [];
+                        } else if (Array.isArray(imagesData)) {
+                            task.images = imagesData;
                         }
-                        // Se newImageData for null, manter imagem existente (não faz nada)
+                        // Se imagesData for null, manter imagens existentes
 
-                        // Recalcular se a tarefa está completa
+                        // Recalcular status de conclusão da tarefa
                         task.completed = task.steps.every(step => step.completed);
 
                         const updateRequest = store.put(task);
 
                         updateRequest.onsuccess = () => {
-                            showStatusMessage('Cronograma atualizado com sucesso!');
-                            closeModal();
+                            showStatusMessage('Cronograma atualizado com sucesso!', 'success');
+                            closeModal(); // ou taskModal.style.display = 'none';
                             loadTasks();
+
+                            // Limpar campos do modal de edição
+                            if (typeof editTaskImageInput !== 'undefined') editTaskImageInput.value = '';
+                            if (typeof editCapturedImagesData !== 'undefined') editCapturedImagesData = [];
+                            const preview = document.getElementById('editImagePreview');
+                            if (preview) preview.innerHTML = '';
+                            updateImagesCount('editImagesCount', 0);
+                            if (typeof isEditModalFirstAudioInput !== 'undefined') isEditModalFirstAudioInput = true;
                         };
 
                         updateRequest.onerror = (event) => {
@@ -2517,6 +2757,7 @@
                     showStatusMessage('Erro ao obter cronograma para edição', 'error');
                 };
             }
+
 
 
             function deleteTask(taskId) {
@@ -3139,13 +3380,61 @@
                 const imageData = canvas.toDataURL('image/jpeg', 0.8);
 
                 if (isEditMode) {
-                    editCapturedImageData = imageData;
-                    showImagePreview(imageData, 'editImagePreview');
+                    editCapturedImagesData.push(imageData);
+                    showMultipleImagePreview(editCapturedImagesData, 'editImagePreview');
+                    updateImagesCount('editImagesCount', editCapturedImagesData.length);
                 } else {
-                    capturedImageData = imageData;
-                    showImagePreview(imageData, 'imagePreview');
+                    capturedImagesData.push(imageData);
+                    showMultipleImagePreview(capturedImagesData, 'imagePreview');
+                    updateImagesCount('imagesCount', capturedImagesData.length);
                 }
             }
+
+            // Função para mostrar múltiplas imagens
+            function showMultipleImagePreview(imagesArray, containerId) {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+
+                imagesArray.forEach((imageData, index) => {
+                    const imgContainer = document.createElement('div');
+                    imgContainer.style.cssText = 'display: inline-block; margin: 5px; position: relative;';
+
+                    const img = document.createElement('img');
+                    img.src = imageData;
+                    img.style.cssText = 'max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; border: 2px solid #ddd;';
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.innerHTML = '❌';
+                    removeBtn.style.cssText = 'position: absolute; top: -5px; right: -5px; background: red; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;';
+                    removeBtn.onclick = () => removeImageFromArray(index, containerId);
+
+                    imgContainer.appendChild(img);
+                    imgContainer.appendChild(removeBtn);
+                    container.appendChild(imgContainer);
+                });
+            }
+
+            // Função para remover imagem do array
+            function removeImageFromArray(index, containerId) {
+                if (containerId === 'editImagePreview') {
+                    editCapturedImagesData.splice(index, 1);
+                    showMultipleImagePreview(editCapturedImagesData, 'editImagePreview');
+                    updateImagesCount('editImagesCount', editCapturedImagesData.length);
+                } else {
+                    capturedImagesData.splice(index, 1);
+                    showMultipleImagePreview(capturedImagesData, 'imagePreview');
+                    updateImagesCount('imagesCount', capturedImagesData.length);
+                }
+            }
+
+            // Função para atualizar contador de imagens
+            function updateImagesCount(counterId, count) {
+                const counter = document.getElementById(counterId);
+                if (counter) {
+                    counter.textContent = count > 0 ? `${count} imagem(ns) selecionada(s)` : '';
+                }
+            }
+
 
             // Função para mostrar preview da imagem
             function showImagePreview(imageData, containerId) {
@@ -3210,6 +3499,7 @@
                     console.error('Erro ao trocar câmera:', error);
                 }
             }
+
         </script>
 </body>
 
