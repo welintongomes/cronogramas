@@ -2506,7 +2506,25 @@
                      class="edit-scroll-image" 
                      style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
                 <button type="button" onclick="removeExistingImage(${index})"
-                        style="position: absolute; top: -5px; right: -5px; background: red; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">❌</button>
+                        <button style="
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: red;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+">
+  ❌
+</button>
             </div>
         `;
                             });
@@ -2987,11 +3005,14 @@
             // Inicializar a aplicação
             document.addEventListener('DOMContentLoaded', () => {
                 // Adicione estas linhas no DOMContentLoaded
+                document.getElementById('taskImage').addEventListener('change', handleImageUpload);
+                // Limpar o input após processar
+                document.getElementById('taskImage').value = '';
                 document.getElementById('cameraBtn').addEventListener('click', takePhoto);
                 document.getElementById('galleryBtn').addEventListener('click', () => {
                     document.getElementById('taskImage').click();
                 });
-
+                document.getElementById('editTaskImage').addEventListener('change', handleEditImageUpload);
                 document.getElementById('editCameraBtn').addEventListener('click', takePhotoEdit);
                 document.getElementById('editGalleryBtn').addEventListener('click', () => {
                     document.getElementById('editTaskImage').click();
@@ -3393,25 +3414,62 @@
             // Função para mostrar múltiplas imagens
             function showMultipleImagePreview(imagesArray, containerId) {
                 const container = document.getElementById(containerId);
-                container.innerHTML = '';
+
+                if (imagesArray.length === 0) {
+                    container.innerHTML = '';
+                    return;
+                }
+
+                let html = '<div style="display: flex; flex-wrap: nowrap; gap: 10px; margin-top: 10px;">';
 
                 imagesArray.forEach((imageData, index) => {
-                    const imgContainer = document.createElement('div');
-                    imgContainer.style.cssText = 'display: inline-block; margin: 5px; position: relative;';
-
-                    const img = document.createElement('img');
-                    img.src = imageData;
-                    img.style.cssText = 'max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; border: 2px solid #ddd;';
-
-                    const removeBtn = document.createElement('button');
-                    removeBtn.innerHTML = '❌';
-                    removeBtn.style.cssText = 'position: absolute; top: -5px; right: -5px; background: red; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;';
-                    removeBtn.onclick = () => removeImageFromArray(index, containerId);
-
-                    imgContainer.appendChild(img);
-                    imgContainer.appendChild(removeBtn);
-                    container.appendChild(imgContainer);
+                    html += `
+            <div style="position: relative; display: inline-block;">
+                <img src="${imageData}" 
+                     alt="Imagem ${index + 1}" 
+                     class="preview-image"
+                     data-src="${imageData}"
+                     style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
+                <button type="button" onclick="removeImageFromArray(${index}, '${containerId}')"
+                        style="
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: red;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+">❌</button>
+            </div>
+        `;
                 });
+
+                html += '</div>';
+                container.innerHTML = html;
+
+                // Adicionar event listeners após inserir o HTML
+                setTimeout(() => {
+                    const previewImages = container.querySelectorAll('.preview-image');
+                    previewImages.forEach(img => {
+                        img.addEventListener('click', () => {
+                            const modal = document.getElementById('imageModal');
+                            const modalImg = document.getElementById('modalImage');
+
+                            if (modal && modalImg) {
+                                modalImg.src = img.dataset.src;
+                                modal.style.display = 'block';
+                            }
+                        });
+                    });
+                }, 0);
             }
 
             // Função para remover imagem do array
@@ -3499,6 +3557,53 @@
                     console.error('Erro ao trocar câmera:', error);
                 }
             }
+
+            // Função para processar imagens da galeria (modo criação)
+            function handleImageUpload(event) {
+                const files = event.target.files;
+
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        capturedImagesData.push(e.target.result);
+                        showMultipleImagePreview(capturedImagesData, 'imagePreview');
+                        updateImagesCount('imagesCount', capturedImagesData.length);
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+                // Limpar o input para permitir selecionar a mesma imagem novamente
+                event.target.value = '';
+            }
+
+            // Função para processar imagens da galeria (modo edição)
+            function handleEditImageUpload(event) {
+                const files = event.target.files;
+
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        editCapturedImagesData.push(e.target.result);
+                        showMultipleImagePreview(editCapturedImagesData, 'editImagePreview');
+                        updateImagesCount('editImagesCount', editCapturedImagesData.length);
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+                // Limpar o input para permitir selecionar a mesma imagem novamente
+                event.target.value = '';
+            }
+
+            // function openImageModal(imageSrc) {
+            //     // Assumindo que você tem um modal de imagem
+            //     const modal = document.getElementById('imageModal'); // ou o ID do seu modal
+            //     const modalImg = document.getElementById('modalImage'); // ou o ID da imagem do modal
+
+            //     if (modal && modalImg) {
+            //         modalImg.src = imageSrc;
+            //         modal.style.display = 'flex';
+            //     }
+            // }
 
         </script>
 </body>
