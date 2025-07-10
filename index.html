@@ -837,6 +837,20 @@
             cursor: pointer;
         }
 
+        /* css para uma imagem diferenciar de quando tiver varias imagens */
+        .task-images-scroll.single-image {
+            justify-content: center;
+            flex-wrap: nowrap;
+        }
+
+        .task-images-scroll.single-image .scroll-image {
+            max-width: 90%;
+            max-height: 300px;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+
 
         @media (max-width: 768px) {
             #createTaskBtn {
@@ -1152,6 +1166,9 @@
             let editCapturedImagesData = []; // Array para múltiplas imagens no modo edição
             let currentStream = null;
             let currentFacingMode = 'environment'; // Adicionar esta variável
+            //variavel para marcar para remoçao
+            let imagesMarkedForRemoval = [];
+
             // Abrir conexão com o banco de dados
             const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -2316,13 +2333,14 @@
             <div class="task-content">
                 ${(task.images && task.images.length > 0) || task.image ? `
     <div class="task-image-container">
-        <div class="task-images-scroll" style="display: none;">
-            ${(task.images && task.images.length > 0)
+<div class="task-images-scroll ${task.images?.length === 1 ? 'single-image' : ''}" style="display: none;">
+    ${(task.images && task.images.length > 0)
                                 ? task.images.map((img, index) => `
-                    <img src="${img}" alt="Imagem ${index + 1}" class="scroll-image">
-                `).join('')
+            <img src="${img}" alt="Imagem ${index + 1}" class="scroll-image">
+        `).join('')
                                 : `<img src="${task.image}" alt="Imagem do cronograma" class="scroll-image">`}
-        </div>
+</div>
+
 
     </div>
 ` : ''}
@@ -2601,25 +2619,36 @@
 
 
             function removeExistingImage(index) {
-                if (!currentEditTaskId) return;
+                if (!imagesMarkedForRemoval.includes(index)) {
+                    imagesMarkedForRemoval.push(index);
+                }
 
-                const transaction = db.transaction([STORE_NAME], 'readwrite');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.get(currentEditTaskId);
-
-                request.onsuccess = (event) => {
-                    const task = event.target.result;
-                    if (task && task.images && task.images.length > index) {
-                        task.images.splice(index, 1);
-
-                        const updateRequest = store.put(task);
-                        updateRequest.onsuccess = () => {
-                            openEditModal(currentEditTaskId); // Recarregar modal
-                            showStatusMessage('Imagem removida com sucesso', 'success');
-                        };
+                // Esconde visualmente a imagem no modal, sem removê-la do objeto `task` ainda
+                const imageContainers = currentImagePreview.querySelectorAll('.edit-scroll-image');
+                if (imageContainers[index]) {
+                    imageContainers[index].style.opacity = '0.3'; // visual desativado
+                    imageContainers[index].style.pointerEvents = 'none';
+                    const button = imageContainers[index].parentElement.querySelector('button');
+                    if (button) {
+                        button.textContent = '↩️'; // seta para reverter
+                        button.onclick = () => undoRemoveImage(index);
                     }
-                };
+                }
             }
+            function undoRemoveImage(index) {
+                imagesMarkedForRemoval = imagesMarkedForRemoval.filter(i => i !== index);
+                const imageContainers = currentImagePreview.querySelectorAll('.edit-scroll-image');
+                if (imageContainers[index]) {
+                    imageContainers[index].style.opacity = '1';
+                    imageContainers[index].style.pointerEvents = 'auto';
+                    const button = imageContainers[index].parentElement.querySelector('button');
+                    if (button) {
+                        button.textContent = '❌';
+                        button.onclick = () => removeExistingImage(index);
+                    }
+                }
+            }
+
 
 
             // Modificar a função existente para parar gravação ao fechar
@@ -2705,10 +2734,23 @@
 
                         Promise.all(filePromises).then(galleryImages => {
                             allImages = [...allImages, ...galleryImages];
+
+                            // 🔥 Remover as marcadas para remoção (somente agora)
+                            if (imagesMarkedForRemoval.length > 0) {
+                                allImages = allImages.filter((_, index) => !imagesMarkedForRemoval.includes(index));
+                            }
+
                             updateTaskInDatabase(name, steps, allImages);
+                            imagesMarkedForRemoval = []; // limpar após salvar
                         });
                     } else {
+                        // 🔥 Remover as marcadas para remoção (somente agora)
+                        if (imagesMarkedForRemoval.length > 0) {
+                            allImages = allImages.filter((_, index) => !imagesMarkedForRemoval.includes(index));
+                        }
+
                         updateTaskInDatabase(name, steps, allImages);
+                        imagesMarkedForRemoval = []; // limpar após salvar
                     }
                 };
             }
