@@ -223,6 +223,7 @@
             justify-content: center;
             align-items: center;
             z-index: 10002;
+            overscroll-behavior: contain;
         }
 
 
@@ -1036,12 +1037,14 @@
                 text-align: center;
                 font-size: 18px;
                 line-height: 28px;
+                touch-action: none; /* ESSENCIAL */
             }
 
             #resizeHandle::before {
                 content: "≡ puxar para expandir";
                 color: #666;
             }
+            
 
 
         }
@@ -3734,19 +3737,22 @@
             }
 
             const textarea = document.getElementById('editTaskSteps');
-            const handle = document.getElementById('resizeHandle');
+const handle = document.getElementById('resizeHandle');
 
-            let startY, startHeight;
+let startY = 0;
+let startHeight = 0;
 
-            handle.addEventListener('touchstart', e => {
-                startY = e.touches[0].clientY;
-                startHeight = textarea.offsetHeight;
-            });
+handle.addEventListener('touchstart', e => {
+    e.preventDefault(); // bloqueia scroll
+    startY = e.touches[0].clientY;
+    startHeight = textarea.offsetHeight;
+}, { passive: false });
 
-            handle.addEventListener('touchmove', e => {
-                const delta = e.touches[0].clientY - startY;
-                textarea.style.height = (startHeight + delta) + 'px';
-            });
+handle.addEventListener('touchmove', e => {
+    e.preventDefault(); // 🔥 ISSO impede pull-to-refresh
+    const delta = e.touches[0].clientY - startY;
+    textarea.style.height = Math.max(60, startHeight + delta) + 'px';
+}, { passive: false });
 
 
         </script>
