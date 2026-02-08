@@ -25,14 +25,22 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
+        html,
+        body {
+            min-height: 100vh;
+            margin: 0;
+        }
+
 
         body {
-            background-color: #f5f5f5;
-            background-color: #b3b0b057;
+            background: linear-gradient(45deg, #1e1c1c, transparent);
+            background-color: #b3b0b033;
             padding: 25px;
-            max-width: 900px;
+            max-width: 975px;
             margin: 0 auto;
         }
+
+
 
 
         h1 {
@@ -360,12 +368,12 @@
 
         /* Estilos para a paginação */
         .pagination-controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-top: 20px;
-            gap: 0px;
-        }
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    gap: 0px;
+}
 
 
         .pagination-controls button {
@@ -917,8 +925,6 @@
 
         @media (max-width: 768px) {
             body {
-                background-color: #f5f5f5;
-                background-color: #b3b0b057;
                 padding: 15px;
                 max-width: 900px;
                 margin: 0 auto;
@@ -1048,8 +1054,6 @@
                 content: "≡ puxar para expandir";
                 color: #666;
             }
-
-
 
         }
     </style>
@@ -1399,7 +1403,7 @@
             // Nova função para atualizar informações de paginação
             function updatePaginationInfo(totalItems, totalPages) {
                 // Atualizar texto da paginação
-                pageInfo.textContent = `Página ${currentPage} de ${totalPages || 1}`;
+                pageInfo.textContent = ` ${currentPage} de ${totalPages || 1}`;
 
 
                 // Desabilitar/habilitar botões de navegação
