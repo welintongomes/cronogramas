@@ -943,6 +943,30 @@
         .alinhe{
             display: flex;
         }
+        .nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 50px;
+  color: white;
+  cursor: pointer;
+  user-select: none;
+  padding: 10px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 50%;
+}
+
+/* posições */
+.nav-arrow.left {
+  left: 20px;
+}
+
+.nav-arrow.right {
+  right: 20px;
+}
+
+
+
 
         @media (max-width: 768px) {
             body {
@@ -1120,6 +1144,10 @@
     flex-direction: row;
     justify-content: space-around;
 }
+/* no celular não mostra as setas de navegação das imagens */
+  .nav-arrow {
+    display: none;
+  }
 
         }
     </style>
@@ -1298,17 +1326,16 @@
             </div>
 
         </div>
-        <!-- Modal para imagem -->
-        <!-- <div id="imageModal" class="image-modal">
-  <span class="close-modal">&times;</span>
-  <img class="image-modal-content" id="modalImage">
-</div> -->
 
         <!-- Modal de visualização de imagem ampliada -->
         <div id="imageModal" class="image-modal" style="display: none;">
             <span class="close-modal"
                 style="position: absolute; top: 15px; right: 25px; color: white; font-size: 30px; cursor: pointer;">&times;</span>
+                <!-- seta esquerda -->
+  <span class="nav-arrow left">&#10094;</span>
             <img id="modalImage" class="image-modal-content" style="max-width: 90%; max-height: 90%;">
+            <!-- seta direita -->
+  <span class="nav-arrow right">&#10095;</span>
         </div>
 
 
@@ -1361,6 +1388,11 @@
             let currentFacingMode = 'environment'; // Adicionar esta variável
             //variavel para marcar para remoçao
             let imagesMarkedForRemoval = [];
+            let modalImages = [];
+let currentImageIndex = 0;
+
+
+
 
             // Abrir conexão com o banco de dados
             const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -2576,15 +2608,34 @@
                     taskList.appendChild(taskElement);
                     // Event listener para clique nas imagens (abrir modal)
                     const scrollImages = taskElement.querySelectorAll('.scroll-image');
-                    scrollImages.forEach(img => {
-                        img.addEventListener('click', () => {
-                            const modal = document.getElementById('imageModal');
-                            const modalImg = document.getElementById('modalImage');
 
-                            modal.style.display = 'block';
-                            modalImg.src = img.src;
-                        });
-                    });
+scrollImages.forEach((img, index) => {
+  img.addEventListener('click', () => {
+
+    // guarda todas as imagens da tarefa
+    modalImages = task.images && task.images.length > 0
+      ? task.images
+      : [task.image];
+
+    // imagem clicada
+    currentImageIndex = index;
+
+    modalImage.src = modalImages[currentImageIndex];
+    imageModal.style.display = 'block';
+  });
+});
+
+// Event listener para navegar nas imagens pelo teclaco e fechar com esc
+document.addEventListener('keydown', e => {
+  if (imageModal.style.display !== 'block') return;
+
+  if (e.key === 'ArrowRight') nextImage();
+  if (e.key === 'ArrowLeft') prevImage();
+  if (e.key === 'Escape') imageModal.style.display = 'none';
+});
+
+
+
 
                     // Event listener para fechar o modal
                     const modal = document.getElementById('imageModal');
@@ -2648,6 +2699,20 @@
                     expandBtn.addEventListener('click', (e) => toggleTaskExpansion(e, task.id));
                 });
             }
+
+            // Event listener para navegar nas imagens pelo celular arrastando na tela
+const prevArrow = imageModal.querySelector('.nav-arrow.left');
+const nextArrow = imageModal.querySelector('.nav-arrow.right');
+
+prevArrow.addEventListener('click', e => {
+  e.stopPropagation();
+  prevImage();
+});
+
+nextArrow.addEventListener('click', e => {
+  e.stopPropagation();
+  nextImage();
+});
             function toggleTaskExpansion(event, taskId) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -3849,6 +3914,42 @@
                 const delta = e.touches[0].clientY - startY;
                 textarea.style.height = Math.max(60, startHeight + delta) + 'px';
             }, { passive: false });
+
+            let startX = 0;
+
+modalImage.addEventListener('touchstart', e => {
+  startX = e.touches[0].clientX;
+});
+
+modalImage.addEventListener('touchend', e => {
+  const endX = e.changedTouches[0].clientX;
+  const diff = startX - endX;
+
+  if (Math.abs(diff) > 50) {
+    if (diff > 0) {
+      // swipe esquerda → próxima imagem
+      nextImage();
+    } else {
+      // swipe direita → imagem anterior
+      prevImage();
+    }
+  }
+});
+
+function nextImage() {
+  currentImageIndex =
+    (currentImageIndex + 1) % modalImages.length;
+  modalImage.src = modalImages[currentImageIndex];
+}
+
+function prevImage() {
+  currentImageIndex =
+    (currentImageIndex - 1 + modalImages.length) % modalImages.length;
+  modalImage.src = modalImages[currentImageIndex];
+}
+
+
+
 
 
         </script>
