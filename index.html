@@ -940,6 +940,9 @@
             padding: 11px;
             background-color: #155724;
         }
+        .alinhe{
+            display: flex;
+        }
 
         @media (max-width: 768px) {
             body {
@@ -1112,6 +1115,11 @@
                 font-size: 20px;
                 cursor: pointer;
             }
+            .alinhe {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
 
         }
     </style>
@@ -1141,15 +1149,18 @@
 
         <div class="form-group">
             <label for="taskImage">Imagens do Cronograma (opcional):</label>
-            <div class="camera-section">
-
-
+            <div class="alinhe">
                 <button type="button" id="cameraBtn" class="camera-btn">
                     📷 Tirar Foto
                 </button>
                 <button type="button" id="galleryBtn" class="gallery-btn">
                     🖼️ da Galeria
                 </button>
+            </div>
+            <div class="camera-section">
+
+
+                
 
                 <input type="file" id="taskImage" accept="image/*" multiple style="display: none;">
                 <div id="imagePreview" class="image-preview"></div>
