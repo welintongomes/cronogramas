@@ -368,12 +368,12 @@
 
         /* Estilos para a paginação */
         .pagination-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-top: 20px;
-    gap: 0px;
-}
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            gap: 0px;
+        }
 
 
         .pagination-controls button {
@@ -923,6 +923,11 @@
             font-size: 16px;
         }
 
+        .ocultareinicia {
+            display: flex;
+            gap: 7px;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 15px;
@@ -1055,6 +1060,26 @@
                 color: #666;
             }
 
+            .camera-btn,
+            .gallery-btn {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 5px 27px;
+                border-radius: 5px;
+                cursor: pointer;
+                margin-right: 0px;
+                font-size: 16px;
+            }
+
+            .ocultareinicia {
+                padding-left: 8px;
+                gap: 7px;
+                padding-top: 10px;
+                display: flex;
+                flex-direction: row;
+            }
+
         }
     </style>
 </head>
@@ -1065,8 +1090,8 @@
 
 
     <!-- Botão para mostrar a guia -->
-    <button id="toggleContainerBtn">Ocultar Guia</button>
-    <button id="resetGuideBtn">Reiniciar Guia</button>
+
+
 
     <!-- Container oculto inicialmente -->
     <div class="container" style="display: none;">
@@ -1084,16 +1109,23 @@
         <div class="form-group">
             <label for="taskImage">Imagens do Cronograma (opcional):</label>
             <div class="camera-section">
+
+
                 <button type="button" id="cameraBtn" class="camera-btn">
                     📷 Tirar Foto
                 </button>
                 <button type="button" id="galleryBtn" class="gallery-btn">
                     🖼️ da Galeria
                 </button>
+
                 <input type="file" id="taskImage" accept="image/*" multiple style="display: none;">
                 <div id="imagePreview" class="image-preview"></div>
                 <div class="images-count" id="imagesCount" style="margin-top: 10px; font-size: 14px; color: #666;">
                 </div>
+            </div>
+            <div class="ocultareinicia">
+                <button id="toggleContainerBtn">Ocultar Guia</button>
+                <button id="resetGuideBtn">Reiniciar Guia</button>
             </div>
         </div>
 
