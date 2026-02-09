@@ -940,31 +940,53 @@
             padding: 11px;
             background-color: #155724;
         }
-        .alinhe{
+
+        .alinhe {
             display: flex;
         }
+
         .nav-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 50px;
-  color: white;
-  cursor: pointer;
-  user-select: none;
-  padding: 10px;
-  background: rgba(0,0,0,0.4);
-  border-radius: 50%;
-}
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 50px;
+            color: white;
+            cursor: pointer;
+            user-select: none;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 50%;
+        }
 
-/* posições */
-.nav-arrow.left {
-  left: 20px;
-}
+        /* posições */
+        .nav-arrow.left {
+            left: 20px;
+        }
 
-.nav-arrow.right {
-  right: 20px;
-}
+        .nav-arrow.right {
+            right: 20px;
+        }
 
+        .task-steps {
+            max-height: 220px;
+            /* ajuste como quiser */
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        /* Scroll mais bonito (opcional) */
+        .task-steps::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .task-steps::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .task-steps::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
 
 
 
@@ -1139,15 +1161,17 @@
                 font-size: 20px;
                 cursor: pointer;
             }
+
             .alinhe {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-around;
-}
-/* no celular não mostra as setas de navegação das imagens */
-  .nav-arrow {
-    display: none;
-  }
+                display: flex;
+                flex-direction: row;
+                justify-content: space-around;
+            }
+
+            /* no celular não mostra as setas de navegação das imagens */
+            .nav-arrow {
+                display: none;
+            }
 
         }
     </style>
@@ -1188,7 +1212,7 @@
             <div class="camera-section">
 
 
-                
+
 
                 <input type="file" id="taskImage" accept="image/*" multiple style="display: none;">
                 <div id="imagePreview" class="image-preview"></div>
@@ -1331,11 +1355,11 @@
         <div id="imageModal" class="image-modal" style="display: none;">
             <span class="close-modal"
                 style="position: absolute; top: 15px; right: 25px; color: white; font-size: 30px; cursor: pointer;">&times;</span>
-                <!-- seta esquerda -->
-  <span class="nav-arrow left">&#10094;</span>
+            <!-- seta esquerda -->
+            <span class="nav-arrow left">&#10094;</span>
             <img id="modalImage" class="image-modal-content" style="max-width: 90%; max-height: 90%;">
             <!-- seta direita -->
-  <span class="nav-arrow right">&#10095;</span>
+            <span class="nav-arrow right">&#10095;</span>
         </div>
 
 
@@ -1389,7 +1413,7 @@
             //variavel para marcar para remoçao
             let imagesMarkedForRemoval = [];
             let modalImages = [];
-let currentImageIndex = 0;
+            let currentImageIndex = 0;
 
 
 
@@ -2543,7 +2567,7 @@ let currentImageIndex = 0;
                     const progressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
                     taskElement.innerHTML = `
-            <div class="boxBonito">
+                <div class="boxBonito">
                 <div class="task-actions">
                 <button class="delete-task-btn danger" data-taskid="${task.id}">🗑️ Deletar</button>
                 <button onclick="resetTaskSteps('${task.id}')" class="reset-btn">🔄 Resetar</button>
@@ -2557,82 +2581,82 @@ let currentImageIndex = 0;
 
                 </div>
             
-            <div class="task-content">
-                ${(task.images && task.images.length > 0) || task.image ? `
-    <div class="task-image-container">
-<div class="task-images-scroll ${task.images?.length === 1 ? 'single-image' : ''}" style="display: none;">
-    ${(task.images && task.images.length > 0)
+                <div class="task-content">
+                                ${(task.images && task.images.length > 0) || task.image ? `
+                    <div class="task-image-container">
+                <div class="task-images-scroll ${task.images?.length === 1 ? 'single-image' : ''}" style="display: none;">
+                    ${(task.images && task.images.length > 0)
                                 ? task.images.map((img, index) => `
-            <img src="${img}" alt="Imagem ${index + 1}" class="scroll-image">
-        `).join('')
+                            <img src="${img}" alt="Imagem ${index + 1}" class="scroll-image">
+                        `).join('')
                                 : `<img src="${task.image}" alt="Imagem do cronograma" class="scroll-image">`}
-</div>
-
-
-    </div>
-` : ''}
-
-
-    <div class="task-name">${task.highlighted || task.name}</div>
-                <div class="task-progress">
-                    <div class="progress-bar" style="width: ${progressPercentage}%"></div>
-                </div>
-                <div class="task-info">
-                    <small>Progresso: ${completedSteps}/${totalSteps} (${Math.round(progressPercentage)}%)</small>
                 </div>
 
-                <!-- NOVO: Botão para expandir/recolher -->
-            <div class="botoesExpandir">
-                <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
-                    <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
-                    <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
-                </button>
-                <button class="toggle-image-btn colorir" data-taskid="${task.id}">
-                Mostrar imagens
-                </button>
 
-                </div>
-                <!-- Os passos começam ocultos ou expandidos conforme o estado -->
-                <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
-                    ${task.steps.map((step, index) => `
-                        <div class="task-step ${step.completed ? 'completed' : ''}">
-                            <input type="checkbox" class="task-step-checkbox" data-taskid="${task.id}" data-stepindex="${index}" ${step.completed ? 'checked' : ''}>
-                            <div class="step-content">${step.text}</div>
-                        </div>
-                    `).join('')}
-                </div>
-                </div>
+                    </div>
+                        ` : ''}
 
-        `;
+
+                <div class="task-name">${task.highlighted || task.name}</div>
+                            <div class="task-progress">
+                                <div class="progress-bar" style="width: ${progressPercentage}%"></div>
+                            </div>
+                            <div class="task-info">
+                                <small>Progresso: ${completedSteps}/${totalSteps} (${Math.round(progressPercentage)}%)</small>
+                            </div>
+
+                            <!-- NOVO: Botão para expandir/recolher -->
+                        <div class="botoesExpandir">
+                            <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
+                                <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
+                                <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
+                            </button>
+                            <button class="toggle-image-btn colorir" data-taskid="${task.id}">
+                            Mostrar imagens
+                            </button>
+
+                            </div>
+                            <!-- Os passos começam ocultos ou expandidos conforme o estado -->
+                            <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
+                                ${task.steps.map((step, index) => `
+                                    <div class="task-step ${step.completed ? 'completed' : ''}">
+                                        <input type="checkbox" class="task-step-checkbox" data-taskid="${task.id}" data-stepindex="${index}" ${step.completed ? 'checked' : ''}>
+                                        <div class="step-content">${step.text}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            </div>
+
+                    `;
 
                     taskList.appendChild(taskElement);
                     // Event listener para clique nas imagens (abrir modal)
                     const scrollImages = taskElement.querySelectorAll('.scroll-image');
 
-scrollImages.forEach((img, index) => {
-  img.addEventListener('click', () => {
+                    scrollImages.forEach((img, index) => {
+                        img.addEventListener('click', () => {
 
-    // guarda todas as imagens da tarefa
-    modalImages = task.images && task.images.length > 0
-      ? task.images
-      : [task.image];
+                            // guarda todas as imagens da tarefa
+                            modalImages = task.images && task.images.length > 0
+                                ? task.images
+                                : [task.image];
 
-    // imagem clicada
-    currentImageIndex = index;
+                            // imagem clicada
+                            currentImageIndex = index;
 
-    modalImage.src = modalImages[currentImageIndex];
-    imageModal.style.display = 'block';
-  });
-});
+                            modalImage.src = modalImages[currentImageIndex];
+                            imageModal.style.display = 'block';
+                        });
+                    });
 
-// Event listener para navegar nas imagens pelo teclaco e fechar com esc
-document.addEventListener('keydown', e => {
-  if (imageModal.style.display !== 'block') return;
+                    // Event listener para navegar nas imagens pelo teclaco e fechar com esc
+                    document.addEventListener('keydown', e => {
+                        if (imageModal.style.display !== 'block') return;
 
-  if (e.key === 'ArrowRight') nextImage();
-  if (e.key === 'ArrowLeft') prevImage();
-  if (e.key === 'Escape') imageModal.style.display = 'none';
-});
+                        if (e.key === 'ArrowRight') nextImage();
+                        if (e.key === 'ArrowLeft') prevImage();
+                        if (e.key === 'Escape') imageModal.style.display = 'none';
+                    });
 
 
 
@@ -2701,18 +2725,18 @@ document.addEventListener('keydown', e => {
             }
 
             // Event listener para navegar nas imagens pelo celular arrastando na tela
-const prevArrow = imageModal.querySelector('.nav-arrow.left');
-const nextArrow = imageModal.querySelector('.nav-arrow.right');
+            const prevArrow = imageModal.querySelector('.nav-arrow.left');
+            const nextArrow = imageModal.querySelector('.nav-arrow.right');
 
-prevArrow.addEventListener('click', e => {
-  e.stopPropagation();
-  prevImage();
-});
+            prevArrow.addEventListener('click', e => {
+                e.stopPropagation();
+                prevImage();
+            });
 
-nextArrow.addEventListener('click', e => {
-  e.stopPropagation();
-  nextImage();
-});
+            nextArrow.addEventListener('click', e => {
+                e.stopPropagation();
+                nextImage();
+            });
             function toggleTaskExpansion(event, taskId) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -2736,6 +2760,9 @@ nextArrow.addEventListener('click', e => {
                     expandIcon.textContent = '▲';
                     expandText.textContent = 'Recolher';
 
+                    setTimeout(() => {
+                        focusPendingStep(taskElement);
+                    }, 50);
                     // console.log(`Cronograma "${taskId}" expandido`);
                 } else {
                     // Recolher
@@ -3393,44 +3420,53 @@ nextArrow.addEventListener('click', e => {
             function readAndCheckNextStep(taskId) {
                 if (!checkSpeechSynthesisSupport()) return;
 
-                const taskElement = document.querySelector(`[data-taskid="${taskId}"]`).closest('.task-item');
+                const taskElement = document
+                    .querySelector(`[data-taskid="${taskId}"]`)
+                    ?.closest('.task-item');
+
                 if (!taskElement) return;
 
                 const taskTitle = taskElement.querySelector('.task-name')?.textContent || '';
                 const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
 
-                // Obter os passos ainda não concluídos
+                // passos ainda não concluídos
                 const uncheckedSteps = Array.from(checkboxes).filter(cb => !cb.checked);
 
-                // Se não houver mais etapas, parar
                 if (uncheckedSteps.length === 0) {
                     alert('Todos os passos já foram concluídos!');
                     return;
                 }
 
-                // Obter o primeiro passo pendente
+                // 👉 STEP ATUAL (o que VAI ser lido)
                 const currentStepCheckbox = uncheckedSteps[0];
-                const stepText = currentStepCheckbox.closest('.task-step').querySelector('.step-content')?.textContent || '';
+                const currentStepElement = currentStepCheckbox.closest('.task-step');
 
-                // Montar o texto que será lido: se for a primeira vez, ler o título também
+                const stepText = currentStepElement
+                    .querySelector('.step-content')?.textContent || '';
+
                 const isFirstStep = uncheckedSteps.length === checkboxes.length;
                 const fullText = isFirstStep ? `${taskTitle}. ${stepText}` : stepText;
 
-                // Criar e falar
-                const utterance = new SpeechSynthesisUtterance(fullText);
-                utterance.onend = () => {
-                    // Marcar o checkbox após leitura
-                    currentStepCheckbox.checked = true;
+                // 🔥 FOCO ANTES DE LER
+                focusPendingStep(taskElement);
 
-                    // Você pode também disparar o evento de alteração, se tiver lógica atrelada
+                const utterance = new SpeechSynthesisUtterance(fullText);
+
+                utterance.onend = () => {
+                    // marca como concluído
+                    currentStepCheckbox.checked = true;
                     currentStepCheckbox.dispatchEvent(new Event('change'));
 
-                    // Pausar após concluir este passo — leitura só continua com outro clique
+                    // 🔥 FOCO NO PRÓXIMO STEP (após marcar)
+                    setTimeout(() => {
+                        focusPendingStep(taskElement);
+                    }, 100);
                 };
 
-                speechSynthesis.cancel(); // Cancela qualquer leitura anterior
+                speechSynthesis.cancel();
                 speechSynthesis.speak(utterance);
             }
+
 
             function resetTaskSteps(taskId) {
                 const taskElement = document.querySelector(`[data-taskid="${taskId}"]`).closest('.task-item');
@@ -3917,37 +3953,63 @@ nextArrow.addEventListener('click', e => {
 
             let startX = 0;
 
-modalImage.addEventListener('touchstart', e => {
-  startX = e.touches[0].clientX;
-});
+            modalImage.addEventListener('touchstart', e => {
+                startX = e.touches[0].clientX;
+            });
 
-modalImage.addEventListener('touchend', e => {
-  const endX = e.changedTouches[0].clientX;
-  const diff = startX - endX;
+            modalImage.addEventListener('touchend', e => {
+                const endX = e.changedTouches[0].clientX;
+                const diff = startX - endX;
 
-  if (Math.abs(diff) > 50) {
-    if (diff > 0) {
-      // swipe esquerda → próxima imagem
-      nextImage();
-    } else {
-      // swipe direita → imagem anterior
-      prevImage();
-    }
-  }
-});
+                if (Math.abs(diff) > 50) {
+                    if (diff > 0) {
+                        // swipe esquerda → próxima imagem
+                        nextImage();
+                    } else {
+                        // swipe direita → imagem anterior
+                        prevImage();
+                    }
+                }
+            });
 
-function nextImage() {
-  currentImageIndex =
-    (currentImageIndex + 1) % modalImages.length;
-  modalImage.src = modalImages[currentImageIndex];
-}
+            function nextImage() {
+                currentImageIndex =
+                    (currentImageIndex + 1) % modalImages.length;
+                modalImage.src = modalImages[currentImageIndex];
+            }
 
-function prevImage() {
-  currentImageIndex =
-    (currentImageIndex - 1 + modalImages.length) % modalImages.length;
-  modalImage.src = modalImages[currentImageIndex];
-}
+            function prevImage() {
+                currentImageIndex =
+                    (currentImageIndex - 1 + modalImages.length) % modalImages.length;
+                modalImage.src = modalImages[currentImageIndex];
+            }
 
+            function focusPendingStep(taskElement) {
+                const stepsContainer = taskElement.querySelector('.task-steps');
+                if (!stepsContainer) return;
+
+                const steps = stepsContainer.querySelectorAll('.task-step');
+
+                // Achar primeiro passo NÃO marcado
+                const stepToFocus = Array.from(steps).find(step => {
+                    const checkbox = step.querySelector('.task-step-checkbox');
+                    return checkbox && !checkbox.checked;
+                });
+
+                if (!stepToFocus) return;
+
+                // Remove active antigo
+                steps.forEach(s => s.classList.remove('active'));
+
+                // Marca o atual
+                stepToFocus.classList.add('active');
+
+                // Scroll suave
+                stepToFocus.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
 
 
 
