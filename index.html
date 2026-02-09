@@ -134,8 +134,8 @@
 
         .task-content {
             border-radius: 16px;
-            
-        background-color: lavender;
+
+            background-color: lavender;
             flex-grow: 1;
             padding-top: 5px;
         }
@@ -585,7 +585,7 @@
 
         .show-more-btn:hover {
             background-color: #4a90e2;
-}
+        }
 
 
         .view-mode-container {
@@ -618,13 +618,6 @@
             background-color: rgba(40, 167, 69, 0.1);
         }
 
-        /* estilo para botão de pesquisa rapida */
-        /* #voiceSearchBtn {
-            font-size: 11px;
-            width: 94%;
-            cursor: pointer;
-            margin-left: -15px;
-        } */
 
 
         /* Estilos para expandir/recolher cronogramas */
@@ -990,7 +983,29 @@
             background: #555;
         }
 
+        .task-local-search {
+            display: flex;
+            gap: 8px;
+            margin: 10px 0;
+        }
 
+        .step-search-input {
+            flex: 1;
+            padding: 6px;
+        }
+
+
+        .task-item.collapsed .task-local-search {
+            display: none;
+        }
+
+        #cuqui {
+            padding: 14px;
+        }
+
+        #cuqui0 {
+            margin-right: 7px;
+        }
 
         @media (max-width: 768px) {
             body {
@@ -1092,8 +1107,8 @@
             }
 
             .task-content {
-                
-        background-color: lavender;
+
+                background-color: lavender;
                 border-radius: 5px 6px 9px 39px;
                 padding: 0px 0px 0px 19px;
             }
@@ -2605,6 +2620,9 @@
 
                             <!-- NOVO: Botão para expandir/recolher -->
                             
+                            <!-- 🔍 BUSCA LOCAL NOS STEPS -->
+                                
+
 
                             <!-- Os passos começam ocultos ou expandidos conforme o estado -->
                             <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
@@ -2615,6 +2633,15 @@
                                     </div>
                                 `).join('')}
                             </div>
+                            <div class="task-local-search">
+                                <button class="step-voice-search-btn" id="cuqui" title="Pesquisar por voz">🎙️</button>
+                                <button class="clear-step-search-btn" id="cuqui" title="Limpar pesquisa">✖</button>
+                                    <input
+                                        type="text"
+                                        class="step-search-input" id="cuqui0"
+                                        placeholder="Pesquisar neste cronograma..."
+                                    />
+                                </div>
                             </div>
                             <div class="botoesExpandir">
                                 <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
@@ -2645,6 +2672,42 @@
 
 
                     taskList.appendChild(taskElement);
+                    const clearBtn = taskElement.querySelector('.clear-step-search-btn');
+
+                    if (clearBtn) {
+                        clearBtn.addEventListener('click', () => {
+                            clearStepSearch(taskElement);
+                        });
+                    }
+
+                    // 🔍 BUSCA LOCAL NOS STEPS (texto)
+                    const stepSearchInput = taskElement.querySelector('.step-search-input');
+
+                    if (stepSearchInput) {
+                        stepSearchInput.addEventListener('input', (e) => {
+                            filterStepsInsideTask(taskElement, e.target.value);
+                        });
+                    }
+                    const voiceBtn = taskElement.querySelector('.step-voice-search-btn');
+
+                    if (voiceBtn && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                        const recognition = new SpeechRecognition();
+
+                        recognition.lang = 'pt-BR';
+                        recognition.interimResults = false;
+
+                        voiceBtn.addEventListener('click', () => {
+                            recognition.start();
+                        });
+
+                        recognition.onresult = (event) => {
+                            const transcript = event.results[0][0].transcript;
+                            stepSearchInput.value = transcript;
+                            stepSearchInput.dispatchEvent(new Event('input'));
+                        };
+                    }
+
                     // Event listener para clique nas imagens (abrir modal)
                     const scrollImages = taskElement.querySelectorAll('.scroll-image');
 
@@ -2739,6 +2802,29 @@
                 });
             }
 
+            function filterStepsInsideTask(taskElement, searchValue) {
+                const steps = taskElement.querySelectorAll('.task-step');
+                const value = searchValue.toLowerCase().trim();
+
+                steps.forEach(step => {
+                    const text = step.querySelector('.step-content')?.textContent.toLowerCase() || '';
+                    step.style.display = text.includes(value) ? '' : 'none';
+                });
+            }
+            // funçao de limpara a pesquisa do tasks
+            function clearStepSearch(taskElement) {
+                const input = taskElement.querySelector('.step-search-input');
+                const steps = taskElement.querySelectorAll('.task-step');
+
+                if (input) input.value = '';
+
+                steps.forEach(step => {
+                    step.style.display = '';
+                });
+            }
+
+
+
             // Event listener para navegar nas imagens pelo celular arrastando na tela
             const prevArrow = imageModal.querySelector('.nav-arrow.left');
             const nextArrow = imageModal.querySelector('.nav-arrow.right');
@@ -2780,6 +2866,8 @@
                     }, 50);
                     // console.log(`Cronograma "${taskId}" expandido`);
                 } else {
+                    // 🔴 RECOLHER → LIMPA BUSCA LOCAL
+                    clearStepSearch(taskElement);
                     // Recolher
                     expandedTasks.delete(taskId); // Remover do conjunto de expandidos
                     taskElement.classList.add('collapsed');
@@ -4026,8 +4114,14 @@
                 });
             }
 
+            function clearStepSearch(taskElement) {
+                const input = taskElement.querySelector('.step-search-input');
+                const steps = taskElement.querySelectorAll('.task-step');
 
+                if (input) input.value = '';
 
+                steps.forEach(step => step.style.display = '');
+            }
 
         </script>
 </body>
