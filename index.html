@@ -33,21 +33,25 @@
 
 
         body {
-            background: linear-gradient(45deg, #1e1c1c, transparent);
-            background-color: #b3b0b033;
-            padding: 25px;
-            max-width: 975px;
-            margin: 0 auto;
-        }
+    background: linear-gradient(
+263deg, #000000, transparent);
+    background-color: #ffffff70;
+    padding: 25px;
+    max-width: 975px;
+    margin: 0 auto;
+}
 
 
 
 
-        h1 {
-            color: var(--dark-color);
-            text-align: center;
-            margin-bottom: 20px;
-        }
+h1 {
+    font-size: 57px;
+    font-family: auto;
+    color: #ffffff91;
+    text-align: center;
+    margin-bottom: 20px;
+    text-shadow: 0px 7px 4px rgba(0,0,0,0.6);
+}
 
 
         .container {
@@ -119,15 +123,7 @@
         }
 
 
-        .task-item {
-            background-color: var(--light-color);
-            padding: 15px;
-            border-radius: var(--border-radius);
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+
 
 
         .task-item.completed {
@@ -138,7 +134,10 @@
 
 
         .task-content {
+            border-radius: 16px;
+            background-color: lightyellow;
             flex-grow: 1;
+            padding-top: 5px;
         }
 
 
@@ -294,15 +293,19 @@
 
 
         .task-item {
+            border-radius: 18px;
             display: flex;
             border: 1px solid #ddd;
             padding: 10px;
             margin-bottom: 10px;
             background: #fff;
-            border-radius: 5px;
+            /* border-radius: 5px; */
             flex-direction: column;
             align-items: stretch;
+            /* background-color: var(--light-color);
+            border-radius: var(--border-radius); */
         }
+
 
 
         .task-actions {
@@ -314,10 +317,6 @@
             flex-direction: row-reverse;
         }
 
-
-        .task-content {
-            padding-top: 5px;
-        }
 
 
         /* Estilos para a barra de pesquisa */
@@ -730,9 +729,8 @@
         .botoesExpandir {
             gap: 10px;
             display: flex;
-            justify-content: flex-start;
+            justify-content: center;
             flex-direction: row;
-            align-items: baseline;
         }
 
         #toggleContainerBtn {
@@ -1081,9 +1079,9 @@
             }
 
             .task-actions {
-                padding: 7px 11px 3px 0px;
+                padding: 7px 6px 3px 0px;
                 display: flex;
-                justify-content: flex-start;
+                justify-content: center;
                 gap: 8px;
                 margin-bottom: 2px;
                 flex-direction: row-reverse;
@@ -1095,7 +1093,8 @@
 
             .task-name {
                 margin-right: 10px;
-                padding: 0px 8px;
+                padding: 4px;
+                margin-top: 10px;
             }
 
             #editTaskSteps {
@@ -1171,6 +1170,16 @@
             /* no celular não mostra as setas de navegação das imagens */
             .nav-arrow {
                 display: none;
+            }
+
+            .boxBonito {
+                box-shadow: 0 0px 50px rgba(0, 0, 0, 0.2);
+                border: 1px solid #764ba2;
+                padding: 1px;
+                text-align: left;
+                border-radius: 7px;
+                background-color: #f9f9f9;
+                background-color: #d9ab1a0d;
             }
 
         }
@@ -1939,14 +1948,7 @@
             function hideAudioStatus() {
                 audioStatus.className = 'audio-status';
             }
-            // Funções para síntese de voz (leitura)
-            // function toggleReadTask(taskId) {
-            //     if (isReading && currentReadingTaskId === taskId) {
-            //         stopReading();
-            //     } else {
-            //         startReadingTask(taskId);
-            //     }
-            // }
+
             function toggleReadTask(taskId) {
                 if (!checkSpeechSynthesisSupport()) return;
 
@@ -2023,7 +2025,7 @@
             }
 
 
-
+            // funçao duvidosa nao sei se posso remover ou nao ela
             function startReadingTask(taskId) {
                 // Parar qualquer leitura em andamento
                 if (isReading) {
@@ -2055,6 +2057,7 @@
                     showStatusMessage('Erro ao obter cronograma para leitura', 'error');
                 };
             }
+
 
             function readTaskContent(task, taskId) {
                 // Preparar o texto para leitura
@@ -2567,19 +2570,7 @@
                     const progressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
                     taskElement.innerHTML = `
-                <div class="boxBonito">
-                <div class="task-actions">
-                <button class="delete-task-btn danger" data-taskid="${task.id}">🗑️ Deletar</button>
-                <button onclick="resetTaskSteps('${task.id}')" class="reset-btn">🔄 Resetar</button>
-                <button class="edit-task-btn" data-taskid="${task.id}">✏️ Editar</button>
-                <button class="read-task-btn" data-taskid="${task.id}">
-                    <span class="read-btn-text">🔊ler</span>
-                </button>
-                <button class="step-read-btn" data-taskid="${task.id}">
-                    <span class="read-btn-text">▶️ Executar</span>
-                </button>
-
-                </div>
+                
             
                 <div class="task-content">
                                 ${(task.images && task.images.length > 0) || task.image ? `
@@ -2606,16 +2597,8 @@
                             </div>
 
                             <!-- NOVO: Botão para expandir/recolher -->
-                        <div class="botoesExpandir">
-                            <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
-                                <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
-                                <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
-                            </button>
-                            <button class="toggle-image-btn colorir" data-taskid="${task.id}">
-                            Mostrar imagens
-                            </button>
+                            
 
-                            </div>
                             <!-- Os passos começam ocultos ou expandidos conforme o estado -->
                             <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
                                 ${task.steps.map((step, index) => `
@@ -2626,8 +2609,33 @@
                                 `).join('')}
                             </div>
                             </div>
-
+                            <div class="botoesExpandir">
+                                <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
+                                    <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
+                                    <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
+                                    </button>
+                                    <button class="toggle-image-btn colorir" data-taskid="${task.id}">
+                                    Mostrar imagens
+                                </button>
+                            
+                            </div>
+                            <div class="boxBonito">
+                                <div class="task-actions">
+                                    
+                                <button class="delete-task-btn danger" data-taskid="${task.id}">🗑️ Deletar</button>
+                                <button onclick="resetTaskSteps('${task.id}')" class="reset-btn">🔄 Resetar</button>
+                                <button class="edit-task-btn" data-taskid="${task.id}">✏️ Editar</button>
+                                <button class="read-task-btn" data-taskid="${task.id}">
+                                <span class="read-btn-text">🔊ler</span>
+                                </button>
+                                <button class="step-read-btn" data-taskid="${task.id}">
+                                <span class="read-btn-text">▶️ Executar</span>
+                                </button>
+                                
+                            </div>
                     `;
+
+
 
                     taskList.appendChild(taskElement);
                     // Event listener para clique nas imagens (abrir modal)
