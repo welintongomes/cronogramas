@@ -1433,72 +1433,69 @@
 
 
         <script>
-            // Inicialização do IndexedDB
+            // ==================== CONFIGURAÇÕES DO BANCO DE DADOS ====================
             let db;
             const DB_NAME = 'CronogramasDB';
             const STORE_NAME = 'tasks';
             const DB_VERSION = 1;
 
-            // Variável para controlar quais cronogramas estão expandidos
+            // ==================== ESTADO DA APLICAÇÃO ====================
+            let tasks = [];
             let expandedTasks = new Set();
-            // Variáveis para pesquisa e visualização
+            let imagesMarkedForRemoval = [];
+            let modalImages = [];
+            let currentImageIndex = 0;
+            let currentEditTaskId = null;
+
+            // ==================== PAGINAÇÃO E VISUALIZAÇÃO ====================
             let currentPage = 1;
             let pageSize = 10;
             let filteredTasks = [];
-            let viewMode = 'compact'; // 'compact' ou 'all'
-            let totalLoadedTasks = 2; // Começar mostrando apenas 2 tarefas no modo compacto
-            // Variáveis para reconhecimento de voz
+            let viewMode = 'compact';
+            let totalLoadedTasks = 2;
+
+            // ==================== BUSCA LOCAL ====================
+            let currentSearchMatches = [];
+            let currentMatchIndex = 0;
+
+            // ==================== RECONHECIMENTO DE VOZ (CRIAR) ====================
             let recognition = null;
             let isRecording = false;
             let isFirstAudioInput = true;
-            // Variáveis para controle de áudio sequencial
-            let currentAudioQueue = [];
-            let currentAudioIndex = 0;
-            let isPlayingSequence = false;
-            let sequenceTimeout = null;
-            // Configurações de pausa (em milissegundos)
-            const PAUSE_AFTER_TITLE = 1000; // 1 segundos após o título
-            const PAUSE_BETWEEN_STEPS = 500; // 30 segundos entre steps
 
-            // Variáveis para síntese de voz (leitura)
+            // ==================== RECONHECIMENTO DE VOZ (EDITAR) ====================
+            let isEditModalFirstAudioInput = true;
+            let isEditModalRecording = false;
+
+            // ==================== SÍNTESE DE VOZ (LEITURA) ====================
             let speechSynthesis = window.speechSynthesis;
             let currentUtterance = null;
             let currentTaskId = null;
             let isPaused = false;
             let isReading = false;
             let currentReadingTaskId = null;
-            let tasks = [];
 
+            // ==================== ÁUDIO SEQUENCIAL ====================
+            let currentAudioQueue = [];
+            let currentAudioIndex = 0;
+            let isPlayingSequence = false;
+            let sequenceTimeout = null;
+            const PAUSE_AFTER_TITLE = 1000;
+            const PAUSE_BETWEEN_STEPS = 500;
 
-            // Adicionar no início do script, junto com as outras variáveis
-            let isEditModalFirstAudioInput = true;
-            let isEditModalRecording = false;
-            //variaveis para controlar a camera do celular
-            // Variáveis para câmera
-            let capturedImagesData = []; // Array para múltiplas imagens
-            let editCapturedImagesData = []; // Array para múltiplas imagens no modo edição
+            // ==================== CÂMERA ====================
+            let capturedImagesData = [];
+            let editCapturedImagesData = [];
             let currentStream = null;
-            let currentFacingMode = 'environment'; // Adicionar esta variável
-            //variavel para marcar para remoçao
-            let imagesMarkedForRemoval = [];
-            let modalImages = [];
-            let currentImageIndex = 0;
-            //armazear steps e ocorrencias atuais
-            let currentSearchMatches = [];
-            let currentMatchIndex = 0;
+            let currentFacingMode = 'environment';
 
-
-
-
-            // Abrir conexão com o banco de dados
+            // ==================== CONEXÃO COM INDEXEDDB ====================
             const request = indexedDB.open(DB_NAME, DB_VERSION);
-
 
             request.onerror = (event) => {
                 console.error('Erro ao abrir o banco de dados:', event.target.error);
                 showStatusMessage('Erro ao abrir o banco de dados', 'error');
             };
-
 
             request.onupgradeneeded = (event) => {
                 db = event.target.result;
@@ -1509,334 +1506,18 @@
                 }
             };
 
-
             request.onsuccess = (event) => {
                 db = event.target.result;
                 console.log('Banco de dados aberto com sucesso');
                 loadTasks();
             };
 
-            function toggleEditModalAudioRecording() {
-                if (!recognition && !initSpeechRecognition()) {
-                    return;
-                }
-
-                if (isEditModalRecording) {
-                    stopEditModalRecording();
-                } else {
-                    startEditModalRecording();
-                }
-            }
-
-            function startEditModalRecording() {
-                try {
-                    isEditModalRecording = true;
-                    editAudioBtn.classList.add('recording');
-                    editAudioIcon.textContent = '⏸️';
-                    editAudioBtnText.textContent = 'Parar';
-
-                    // CORREÇÃO: Configurar onresult especificamente para o modal
-                    recognition.onresult = function (event) {
-                        const transcript = event.results[0][0].transcript.trim();
-                        console.log('Texto reconhecido no modal:', transcript);
-
-                        if (transcript) {
-                            handleEditModalAudioInput(transcript);
-                        }
-                    };
-
-                    recognition.start();
-                    showEditAudioStatus('🎤 Escutando... Fale agora!', 'listening');
-                } catch (error) {
-                    console.error('Erro ao iniciar gravação no modal:', error);
-                    showEditAudioStatus('Erro ao iniciar gravação', 'error');
-                    stopEditModalRecording();
-                }
-            }
-
-            function stopEditModalRecording() {
-                if (recognition && isEditModalRecording) {
-                    recognition.stop();
-                }
-
-                isEditModalRecording = false;
-                editAudioBtn.classList.remove('recording');
-                editAudioIcon.textContent = '🎤';
-                editAudioBtnText.textContent = '';
-            }
-
-            function handleEditModalAudioInput(text) {
-                if (isEditModalFirstAudioInput) {
-                    // Primeira entrada vai para o título
-                    editTaskNameInput.value = text;
-                    isEditModalFirstAudioInput = false;
-
-                    // Focar no textarea para próximas entradas
-                    editTaskStepsInput.focus();
-
-                    showEditAudioStatus('✅ Título definido! Continue falando para adicionar passos...', 'listening');
-
-                    setTimeout(() => {
-                        hideEditAudioStatus();
-                    }, 2000);
-                } else {
-                    // Entradas subsequentes vão para os passos
-                    const currentSteps = editTaskStepsInput.value;
-                    const newStep = currentSteps ? currentSteps + '\n' + text : text;
-                    editTaskStepsInput.value = newStep;
-
-                    // Rolar para o final do textarea
-                    editTaskStepsInput.scrollTop = editTaskStepsInput.scrollHeight;
-
-                    showEditAudioStatus('✅ Passo adicionado!', 'listening');
-
-                    setTimeout(() => {
-                        hideEditAudioStatus();
-                    }, 1500);
-                }
-            }
-
-            function showEditAudioStatus(message, type) {
-                editAudioStatus.textContent = message;
-                editAudioStatus.className = `audio-status ${type}`;
-            }
-
-            function hideEditAudioStatus() {
-                editAudioStatus.className = 'audio-status';
-            }
-
-
-
-            // Nova função para atualizar informações de paginação
-            function updatePaginationInfo(totalItems, totalPages) {
-                // Atualizar texto da paginação
-                pageInfo.textContent = ` ${currentPage} de ${totalPages || 1}`;
-
-
-                // Desabilitar/habilitar botões de navegação
-                prevPageBtn.disabled = currentPage <= 1;
-                nextPageBtn.disabled = currentPage >= totalPages;
-
-
-                // Ocultar controles de paginação se houver apenas uma página
-                const paginationControls = document.getElementById('paginationControls');
-                paginationControls.style.display = totalPages <= 1 ? 'none' : 'flex';
-            }
-
-
-            // Função para atualizar a visibilidade do botão "Mostrar Mais"
-            function updateShowMoreButton() {
-                const showMoreBtn = document.getElementById('showMoreBtn');
-
-
-                if (viewMode === 'compact' && filteredTasks.length > totalLoadedTasks) {
-                    showMoreBtn.style.display = 'block';
-                } else {
-                    showMoreBtn.style.display = 'none';
-                }
-            }
-
-
-            // Referências aos elementos do DOM
-            const taskNameInput = document.getElementById('taskName');
-            const taskStepsInput = document.getElementById('taskSteps');
-            const createTaskBtn = document.getElementById('createTaskBtn');
-            const taskList = document.getElementById('taskList');
-            const exportBtn = document.getElementById('exportBtn');
-            const importInput = document.getElementById('importInput');
-            const taskModal = document.getElementById('taskModal');
-            const editTaskNameInput = document.getElementById('editTaskName');
-            const editTaskStepsInput = document.getElementById('editTaskSteps');
-            const saveTaskBtn = document.getElementById('saveTaskBtn');
-            const modalCloseBtn = document.querySelector('.modal-close');
-            const statusMessage = document.getElementById('statusMessage');
-
-            const editAudioBtn = document.getElementById('editAudioBtn');
-            const editAudioIcon = document.getElementById('editAudioIcon');
-            const editAudioBtnText = document.getElementById('editAudioBtnText');
-            const editAudioStatus = document.getElementById('editAudioStatus');
-            // Referências para campos de imagem
-            const taskImageInput = document.getElementById('taskImage');
-            const editTaskImageInput = document.getElementById('editTaskImage');
-            const currentImagePreview = document.getElementById('currentImagePreview');
-
-
-            // Adicionar referências aos elementos do DOM para a busca e paginação
-            const searchInput = document.getElementById('searchInput');
-            const clearSearchBtn = document.getElementById('clearSearchBtn');
-            const prevPageBtn = document.getElementById('prevPageBtn');
-            const nextPageBtn = document.getElementById('nextPageBtn');
-            const pageInfo = document.getElementById('pageInfo');
-            const pageSizeSelect = document.getElementById('pageSizeSelect');
-            const viewModeSelect = document.getElementById('viewModeSelect');
-            const showMoreBtn = document.getElementById('showMoreBtn');
-            // Referências para áudio
-            const audioBtn = document.getElementById('audioBtn');
-            const audioIcon = document.getElementById('audioIcon');
-            const audioBtnText = document.getElementById('audioBtnText');
-            const audioStatus = document.getElementById('audioStatus');
-
-
-            let currentEditTaskId = null;
-
-
-            // Event listeners para busca e paginação
-            searchInput.addEventListener('input', function () {
-                const searchValue = this.value.trim();
-                if (searchValue) {
-                    clearSearchBtn.style.display = 'block';
-                } else {
-                    clearSearchBtn.style.display = 'none';
-                }
-                currentPage = 1; // Reset para a primeira página ao pesquisar
-                totalLoadedTasks = viewMode === 'compact' ? 2 : filteredTasks.length; // Reset do número de tarefas carregadas
-                loadTasks();
-            });
-
-            const resetBtn = document.getElementById('resetGuideBtn');
-
-            resetBtn.addEventListener('click', () => {
-                // Limpa todos os campos
-                taskNameInput.value = '';
-                taskStepsInput.value = '';
-                taskImageInput.value = '';
-
-                // Reinicia o estado do áudio
-                isFirstAudioInput = true;
-
-                // Opcional: inicia a gravação automaticamente
-                // toggleAudioRecording();
-            });
-
-            const imageModal = document.getElementById('imageModal');
-            const modalImage = document.getElementById('modalImage');
-            const closeModalBtn = imageModal.querySelector('.close-modal');
-
-            // Fecha o modal quando clica no botão "×"
-            closeModalBtn.addEventListener('click', () => {
-                imageModal.style.display = 'none';
-            });
-
-
-
-
-            clearSearchBtn.addEventListener('click', function () {
-                searchInput.value = '';
-                clearSearchBtn.style.display = 'none';
-                currentPage = 1; // Reset para a primeira página ao limpar a pesquisa
-                totalLoadedTasks = viewMode === 'compact' ? 2 : filteredTasks.length; // Reset do número de tarefas carregadas
-                loadTasks();
-            });
-
-
-            prevPageBtn.addEventListener('click', function () {
-                if (currentPage > 1) {
-                    currentPage--;
-                    loadTasks();
-                }
-            });
-
-
-            nextPageBtn.addEventListener('click', function () {
-                const totalPages = Math.ceil(filteredTasks.length / pageSize);
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    loadTasks();
-                }
-            });
-
-
-            pageSizeSelect.addEventListener('change', function () {
-                pageSize = parseInt(this.value);
-                currentPage = 1; // Reset para a primeira página ao alterar o tamanho da página
-                loadTasks();
-            });
-
-
-
-
-            // Event listener para o seletor de modo de visualização
-            viewModeSelect.addEventListener('change', function () {
-                viewMode = this.value;
-                currentPage = 1; // Reset para a primeira página ao mudar o modo de visualização
-
-
-                // Redefinir o número de tarefas carregadas com base no modo de visualização
-                totalLoadedTasks = viewMode === 'compact' ? 2 : filteredTasks.length;
-
-
-                // Atualizar a exibição dos controles de paginação com base no modo
-                const paginationControls = document.getElementById('paginationControls');
-                paginationControls.style.display = viewMode === 'all' ? 'flex' : 'none';
-
-
-                loadTasks();
-            });
-
-
-            // Event listener para o botão "Mostrar Mais"
-            showMoreBtn.addEventListener('click', function () {
-                // Aumentar o número de tarefas carregadas em 2
-                totalLoadedTasks += 2;
-
-
-                // Se todas as tarefas já foram carregadas, esconder o botão
-                if (totalLoadedTasks >= filteredTasks.length) {
-                    totalLoadedTasks = filteredTasks.length;
-                    this.style.display = 'none';
-                }
-
-
-                // Recarregar as tarefas com o novo valor
-                renderTasks(filteredTasks.slice(0, totalLoadedTasks));
-            });
-
-
-            // Event Listeners
-            //event listener para editar por audio
-            editAudioBtn.addEventListener('click', toggleEditModalAudioRecording);
-            createTaskBtn.addEventListener('click', () => {
-                const container = document.querySelector('.container');
-                const toggleBtn = document.getElementById('toggleContainerBtn');
-                const resetBtn = document.getElementById('resetGuideBtn');
-
-                if (resetBtn) {
-                    resetBtn.style.display = 'inline-block'; // ou flex
-                }
-
-
-                // Se a guia estiver oculta, exibe ela primeiro
-                if (container.style.display === 'none') {
-                    container.style.display = 'block';
-
-                    // Mostra o botão de ocultar
-                    if (toggleBtn) {
-                        toggleBtn.style.display = 'inline-block'; // ou 'flex', dependendo do seu layout
-                        toggleBtn.textContent = 'Ocultar Guia';
-                    }
-
-                    return; // Não cria ainda
-                }
-
-                // Se já estiver visível, cria o cronograma normalmente
-                createTask();
-            });
-
-
-            exportBtn.addEventListener('click', exportTasks);
-            importInput.addEventListener('change', importTasks);
-            document.getElementById('importBtn').addEventListener('click', () => {
-                document.getElementById('importInput').click();
-            });
-            modalCloseBtn.addEventListener('click', closeModal);
-            saveTaskBtn.addEventListener('click', saveTaskChanges);
-            audioBtn.addEventListener('click', toggleAudioRecording);
-
-            // Funções para reconhecimento de voz
+            // ==================== FUNÇÕES DE RECONHECIMENTO DE VOZ ====================
             function initSpeechRecognition() {
                 if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
                     showAudioStatus('Reconhecimento de voz não suportado neste navegador', 'error');
-                    audioBtn.style.display = 'none';
+                    const audioBtn = document.getElementById('audioBtn');
+                    if (audioBtn) audioBtn.style.display = 'none';
                     return false;
                 }
 
@@ -1850,13 +1531,10 @@
 
                 recognition.onstart = function () {
                     console.log('Reconhecimento de voz iniciado');
-                    // Mostrar status apenas se não estiver no modal
                     if (!isEditModalRecording) {
                         showAudioStatus('🎤 Escutando... Fale agora!', 'listening');
                     }
                 };
-
-                // REMOVER O recognition.onresult DAQUI - será configurado dinamicamente
 
                 recognition.onerror = function (event) {
                     console.error('Erro no reconhecimento:', event.error);
@@ -1886,11 +1564,8 @@
 
                 recognition.onend = function () {
                     console.log('Reconhecimento de voz finalizado');
-
-                    // Parar gravação tanto na tela principal quanto no modal
                     stopRecording();
                     stopEditModalRecording();
-
                     hideAudioStatus();
                     hideEditAudioStatus();
                 };
@@ -1904,28 +1579,24 @@
                 const resetBtn = document.getElementById('resetGuideBtn');
 
                 if (resetBtn) {
-                    resetBtn.style.display = 'inline-block'; // ou flex
+                    resetBtn.style.display = 'inline-block';
                 }
 
-
-                // Se a guia estiver oculta, mostra ela e o botão de fechar
                 if (container.style.display === 'none') {
                     container.style.display = 'block';
 
                     if (toggleBtn) {
-                        toggleBtn.style.display = 'inline-block'; // ou 'flex' se preferir
+                        toggleBtn.style.display = 'inline-block';
                         toggleBtn.textContent = 'Ocultar Guia';
                     }
 
-                    // Aguarda a exibição antes de continuar
                     setTimeout(() => {
-                        toggleAudioRecording(); // chama novamente após exibir
+                        toggleAudioRecording();
                     }, 300);
 
-                    return; // Sai da execução atual
+                    return;
                 }
 
-                // Agora a lógica normal de gravar ou parar
                 if (isRecording) {
                     stopRecording();
                 } else {
@@ -1933,16 +1604,21 @@
                 }
             }
 
-
-
             function startRecording() {
+                if (!recognition && !initSpeechRecognition()) {
+                    return;
+                }
+
                 try {
                     isRecording = true;
+                    const audioBtn = document.getElementById('audioBtn');
+                    const audioIcon = document.getElementById('audioIcon');
+                    const audioBtnText = document.getElementById('audioBtnText');
+
                     audioBtn.classList.add('recording');
                     audioIcon.textContent = '⏸️';
                     audioBtnText.textContent = 'Parar';
 
-                    // CORREÇÃO: Configurar onresult especificamente para tela principal
                     recognition.onresult = function (event) {
                         const transcript = event.results[0][0].transcript.trim();
                         console.log('Texto reconhecido na tela principal:', transcript);
@@ -1966,33 +1642,33 @@
                 }
 
                 isRecording = false;
-                audioBtn.classList.remove('recording');
-                audioIcon.textContent = '🎤';
-                audioBtnText.textContent = '';
+                const audioBtn = document.getElementById('audioBtn');
+                const audioIcon = document.getElementById('audioIcon');
+                const audioBtnText = document.getElementById('audioBtnText');
+
+                if (audioBtn) audioBtn.classList.remove('recording');
+                if (audioIcon) audioIcon.textContent = '🎤';
+                if (audioBtnText) audioBtnText.textContent = '';
             }
 
             function handleAudioInput(text) {
+                const taskNameInput = document.getElementById('taskName');
+                const taskStepsInput = document.getElementById('taskSteps');
+
                 if (isFirstAudioInput) {
-                    // Primeira entrada de áudio vai para o título
                     taskNameInput.value = text;
                     isFirstAudioInput = false;
-
-                    // Focar no textarea para próximas entradas
                     taskStepsInput.focus();
 
                     showAudioStatus('✅ Título definido! Continue falando para adicionar passos...', 'listening');
 
-                    // Aguardar um pouco e permitir nova gravação
                     setTimeout(() => {
                         hideAudioStatus();
                     }, 2000);
                 } else {
-                    // Entradas subsequentes vão para os passos
                     const currentSteps = taskStepsInput.value;
                     const newStep = currentSteps ? currentSteps + '\n' + text : text;
                     taskStepsInput.value = newStep;
-
-                    // Rolar para o final do textarea
                     taskStepsInput.scrollTop = taskStepsInput.scrollHeight;
 
                     showAudioStatus('✅ Passo adicionado!', 'listening');
@@ -2004,12 +1680,133 @@
             }
 
             function showAudioStatus(message, type) {
-                audioStatus.textContent = message;
-                audioStatus.className = `audio-status ${type}`;
+                const audioStatus = document.getElementById('audioStatus');
+                if (audioStatus) {
+                    audioStatus.textContent = message;
+                    audioStatus.className = `audio-status ${type}`;
+                }
             }
 
             function hideAudioStatus() {
-                audioStatus.className = 'audio-status';
+                const audioStatus = document.getElementById('audioStatus');
+                if (audioStatus) {
+                    audioStatus.className = 'audio-status';
+                }
+            }
+
+            // ==================== FUNÇÕES DE RECONHECIMENTO DE VOZ (MODAL EDITAR) ====================
+            function toggleEditModalAudioRecording() {
+                if (!recognition && !initSpeechRecognition()) {
+                    return;
+                }
+
+                if (isEditModalRecording) {
+                    stopEditModalRecording();
+                } else {
+                    startEditModalRecording();
+                }
+            }
+
+            function startEditModalRecording() {
+                try {
+                    isEditModalRecording = true;
+                    const editAudioBtn = document.getElementById('editAudioBtn');
+                    const editAudioIcon = document.getElementById('editAudioIcon');
+                    const editAudioBtnText = document.getElementById('editAudioBtnText');
+
+                    editAudioBtn.classList.add('recording');
+                    editAudioIcon.textContent = '⏸️';
+                    editAudioBtnText.textContent = 'Parar';
+
+                    recognition.onresult = function (event) {
+                        const transcript = event.results[0][0].transcript.trim();
+                        console.log('Texto reconhecido no modal:', transcript);
+
+                        if (transcript) {
+                            handleEditModalAudioInput(transcript);
+                        }
+                    };
+
+                    recognition.start();
+                    showEditAudioStatus('🎤 Escutando... Fale agora!', 'listening');
+                } catch (error) {
+                    console.error('Erro ao iniciar gravação no modal:', error);
+                    showEditAudioStatus('Erro ao iniciar gravação', 'error');
+                    stopEditModalRecording();
+                }
+            }
+
+            function stopEditModalRecording() {
+                if (recognition && isEditModalRecording) {
+                    recognition.stop();
+                }
+
+                isEditModalRecording = false;
+                const editAudioBtn = document.getElementById('editAudioBtn');
+                const editAudioIcon = document.getElementById('editAudioIcon');
+                const editAudioBtnText = document.getElementById('editAudioBtnText');
+
+                if (editAudioBtn) editAudioBtn.classList.remove('recording');
+                if (editAudioIcon) editAudioIcon.textContent = '🎤';
+                if (editAudioBtnText) editAudioBtnText.textContent = '';
+            }
+
+            function handleEditModalAudioInput(text) {
+                const editTaskNameInput = document.getElementById('editTaskName');
+                const editTaskStepsInput = document.getElementById('editTaskSteps');
+
+                if (isEditModalFirstAudioInput) {
+                    editTaskNameInput.value = text;
+                    isEditModalFirstAudioInput = false;
+                    editTaskStepsInput.focus();
+
+                    showEditAudioStatus('✅ Título definido! Continue falando para adicionar passos...', 'listening');
+
+                    setTimeout(() => {
+                        hideEditAudioStatus();
+                    }, 2000);
+                } else {
+                    const currentSteps = editTaskStepsInput.value;
+                    const newStep = currentSteps ? currentSteps + '\n' + text : text;
+                    editTaskStepsInput.value = newStep;
+                    editTaskStepsInput.scrollTop = editTaskStepsInput.scrollHeight;
+
+                    showEditAudioStatus('✅ Passo adicionado!', 'listening');
+
+                    setTimeout(() => {
+                        hideEditAudioStatus();
+                    }, 1500);
+                }
+            }
+
+            function showEditAudioStatus(message, type) {
+                const editAudioStatus = document.getElementById('editAudioStatus');
+                if (editAudioStatus) {
+                    editAudioStatus.textContent = message;
+                    editAudioStatus.className = `audio-status ${type}`;
+                }
+            }
+
+            function hideEditAudioStatus() {
+                const editAudioStatus = document.getElementById('editAudioStatus');
+                if (editAudioStatus) {
+                    editAudioStatus.className = 'audio-status';
+                }
+            }
+
+            // ==================== FUNÇÕES DE SÍNTESE DE VOZ ====================
+            function checkSpeechSynthesisSupport() {
+                if (!('speechSynthesis' in window)) {
+                    console.warn('Síntese de voz não suportada neste navegador');
+                    return false;
+                }
+                return true;
+            }
+
+            function isMobileDevice() {
+                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                    ('ontouchstart' in window) ||
+                    (navigator.maxTouchPoints > 0);
             }
 
             function toggleReadTask(taskId) {
@@ -2020,20 +1817,16 @@
 
                 const isMobile = isMobileDevice();
 
-                // COMPORTAMENTO MOBILE: Apenas Play/Stop
                 if (isMobile) {
-                    // Se está reproduzindo, para tudo
                     if (isPlayingSequence && currentTaskId === taskId) {
                         stopAudioSequence();
                         return;
                     }
 
-                    // Para qualquer reprodução anterior
                     if (isPlayingSequence) {
                         stopAudioSequence();
                     }
 
-                    // Iniciar nova sequência
                     currentTaskId = taskId;
                     currentAudioQueue = createAudioQueue(task);
                     currentAudioIndex = 0;
@@ -2044,10 +1837,8 @@
                     return;
                 }
 
-                // COMPORTAMENTO DESKTOP: Com controle de pausa
                 if (isPlayingSequence && currentTaskId === taskId) {
                     if (!isPaused) {
-                        // Pausar - para tanto o speechSynthesis quanto o timeout
                         speechSynthesis.pause();
                         if (sequenceTimeout) {
                             clearTimeout(sequenceTimeout);
@@ -2056,26 +1847,21 @@
                         isPaused = true;
                         updateReadButton(taskId, true, true);
                     } else {
-                        // Continuar
                         const currentItem = currentAudioQueue[currentAudioIndex];
                         if (currentItem && currentItem.type === 'pause') {
-                            // Se estava em pausa de tempo, continua a partir do próximo
                             currentAudioIndex++;
                             playNextInQueue();
                         } else {
-                            // Se estava em pausa de fala, resume
                             speechSynthesis.resume();
                         }
                         isPaused = false;
                         updateReadButton(taskId, true, false);
                     }
                 } else {
-                    // Para qualquer reprodução anterior
                     if (isPlayingSequence) {
                         stopAudioSequence();
                     }
 
-                    // Iniciar nova sequência
                     currentTaskId = taskId;
                     currentAudioQueue = createAudioQueue(task);
                     currentAudioIndex = 0;
@@ -2085,120 +1871,6 @@
                     updateReadButton(taskId, true, false);
                     playNextInQueue();
                 }
-            }
-
-
-            // funçao duvidosa nao sei se posso remover ou nao ela
-            function startReadingTask(taskId) {
-                // Parar qualquer leitura em andamento
-                if (isReading) {
-                    stopReading();
-                }
-
-                // NOVO: Expandir automaticamente o cronograma ao iniciar leitura
-                const taskElement = document.querySelector(`[data-taskid="${taskId}"].expand-btn`).closest('.task-item');
-                if (taskElement && taskElement.classList.contains('collapsed')) {
-                    expandedTasks.add(taskId); // Adicionar ao estado de expandidos
-                    const expandBtn = taskElement.querySelector('.expand-btn');
-                    const fakeEvent = { preventDefault: () => { }, stopPropagation: () => { }, currentTarget: expandBtn };
-                    toggleTaskExpansion(fakeEvent, taskId);
-                }
-
-                const transaction = db.transaction([STORE_NAME], 'readonly');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.get(taskId);
-
-                request.onsuccess = (event) => {
-                    const task = event.target.result;
-                    if (task) {
-                        readTaskContent(task, taskId);
-                    }
-                };
-
-                request.onerror = (event) => {
-                    console.error('Erro ao obter tarefa para leitura:', event.target.error);
-                    showStatusMessage('Erro ao obter cronograma para leitura', 'error');
-                };
-            }
-
-
-            function readTaskContent(task, taskId) {
-                // Preparar o texto para leitura
-                // let textToRead = `Cronograma: ${task.name}. `;
-                let textToRead = `${task.name}. `;
-
-                if (task.steps && task.steps.length > 0) {
-                    // textToRead += `Este cronograma possui ${task.steps.length} passos: `;
-
-
-                    task.steps.forEach((step, index) => {
-                        const stepNumber = index + 1;
-                        const status = step.completed ? 'concluído' : 'pendente';
-                        //textToRead += `Passo ${stepNumber}: ${step.text}, status ${status}. `;
-                        textToRead += `: ${step.text},. `;
-                    });
-                } else {
-                    textToRead += 'Este cronograma não possui passos definidos.';
-                }
-
-                // Criar utterance
-                currentUtterance = new SpeechSynthesisUtterance(textToRead);
-                currentUtterance.lang = 'pt-BR';
-                currentUtterance.rate = 0.9; // Velocidade um pouco mais lenta
-                currentUtterance.pitch = 1;
-                currentUtterance.volume = 1;
-
-                // Event listeners para a utterance
-                currentUtterance.onstart = () => {
-                    isReading = true;
-                    currentReadingTaskId = taskId;
-                    updateReadButton(taskId, true);
-                    // console.log('Iniciou leitura do cronograma:', task.name);
-                };
-
-                currentUtterance.onend = () => {
-                    isReading = false;
-                    currentReadingTaskId = null;
-                    updateReadButton(taskId, false);
-                    // console.log('Finalizou leitura do cronograma:', task.name);
-                };
-
-                currentUtterance.onerror = (event) => {
-                    console.error('Erro na síntese de voz:', event);
-                    isReading = false;
-                    currentReadingTaskId = null;
-                    updateReadButton(taskId, false);
-                    showStatusMessage('Leitura Interrompida', 'error');
-                };
-
-                // Iniciar a leitura
-                try {
-                    speechSynthesis.speak(currentUtterance);
-                } catch (error) {
-                    console.error('Erro ao iniciar síntese de voz:', error);
-                    showStatusMessage('Erro ao iniciar leitura. Síntese de voz não suportada.', 'error');
-                }
-            }
-
-            function stopReading() {
-                if (speechSynthesis.speaking) {
-                    speechSynthesis.cancel();
-                }
-
-                if (currentReadingTaskId) {
-                    updateReadButton(currentReadingTaskId, false);
-                }
-
-                isReading = false;
-                currentReadingTaskId = null;
-                currentUtterance = null;
-            }
-
-            // Função para detectar se é dispositivo mobile
-            function isMobileDevice() {
-                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                    ('ontouchstart' in window) ||
-                    (navigator.maxTouchPoints > 0);
             }
 
             function updateReadButton(taskId, isCurrentlyReading, isPausedState = false) {
@@ -2221,25 +1893,150 @@
                 }
             }
 
+            function createAudioQueue(task) {
+                const queue = [];
+                queue.push({ type: 'speech', text: task.name });
+                queue.push({ type: 'pause', duration: PAUSE_AFTER_TITLE });
 
+                task.steps.forEach((step, index) => {
+                    queue.push({ type: 'speech', text: step.text });
+                    if (index < task.steps.length - 1) {
+                        queue.push({ type: 'pause', duration: PAUSE_BETWEEN_STEPS });
+                    }
+                });
 
-            function checkSpeechSynthesisSupport() {
-                if (!('speechSynthesis' in window)) {
-                    console.warn('Síntese de voz não suportada neste navegador');
-                    return false;
-                }
-                return true;
+                return queue;
             }
 
+            function playNextInQueue() {
+                if (currentAudioIndex >= currentAudioQueue.length) {
+                    stopAudioSequence();
+                    return;
+                }
 
-            // Funçao para criar novo cronograma
+                const currentItem = currentAudioQueue[currentAudioIndex];
+
+                if (currentItem.type === 'pause') {
+                    sequenceTimeout = setTimeout(() => {
+                        currentAudioIndex++;
+                        playNextInQueue();
+                    }, currentItem.duration);
+                } else {
+                    currentUtterance = new SpeechSynthesisUtterance(currentItem.text);
+                    currentUtterance.rate = 0.9;
+                    currentUtterance.pitch = 1;
+                    currentUtterance.volume = 1;
+
+                    currentUtterance.onend = () => {
+                        currentAudioIndex++;
+                        playNextInQueue();
+                    };
+
+                    currentUtterance.onerror = () => {
+                        stopAudioSequence();
+                    };
+
+                    speechSynthesis.speak(currentUtterance);
+                }
+            }
+
+            function stopAudioSequence() {
+                speechSynthesis.cancel();
+                if (sequenceTimeout) {
+                    clearTimeout(sequenceTimeout);
+                    sequenceTimeout = null;
+                }
+                isPlayingSequence = false;
+                currentAudioQueue = [];
+                currentAudioIndex = 0;
+
+                if (currentTaskId) {
+                    updateReadButton(currentTaskId, false);
+                }
+
+                currentTaskId = null;
+                currentUtterance = null;
+                isPaused = false;
+            }
+
+            function readAndCheckNextStep(taskId) {
+                if (!checkSpeechSynthesisSupport()) return;
+
+                const taskElement = document
+                    .querySelector(`[data-taskid="${taskId}"]`)
+                    ?.closest('.task-item');
+
+                if (!taskElement) return;
+
+                const taskTitle = taskElement.querySelector('.task-name')?.textContent || '';
+                const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
+
+                const uncheckedSteps = Array.from(checkboxes).filter(cb => !cb.checked);
+
+                if (uncheckedSteps.length === 0) {
+                    alert('Todos os passos já foram concluídos!');
+                    return;
+                }
+
+                const currentStepCheckbox = uncheckedSteps[0];
+                const currentStepElement = currentStepCheckbox.closest('.task-step');
+
+                const stepText = currentStepElement
+                    .querySelector('.step-content')?.textContent || '';
+
+                const isFirstStep = uncheckedSteps.length === checkboxes.length;
+                const fullText = isFirstStep ? `${taskTitle}. ${stepText}` : stepText;
+
+                focusPendingStep(taskElement);
+
+                const utterance = new SpeechSynthesisUtterance(fullText);
+
+                utterance.onend = () => {
+                    currentStepCheckbox.checked = true;
+                    currentStepCheckbox.dispatchEvent(new Event('change'));
+
+                    setTimeout(() => {
+                        focusPendingStep(taskElement);
+                    }, 100);
+                };
+
+                speechSynthesis.cancel();
+                speechSynthesis.speak(utterance);
+            }
+
+            function focusPendingStep(taskElement) {
+                const stepsContainer = taskElement.querySelector('.task-steps');
+                if (!stepsContainer) return;
+
+                const steps = stepsContainer.querySelectorAll('.task-step');
+
+                const stepToFocus = Array.from(steps).find(step => {
+                    const checkbox = step.querySelector('.task-step-checkbox');
+                    return checkbox && !checkbox.checked;
+                });
+
+                if (!stepToFocus) return;
+
+                steps.forEach(s => s.classList.remove('active'));
+                stepToFocus.classList.add('active');
+
+                stepToFocus.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
+
+            // ==================== FUNÇÕES DE CRUD ====================
             function createTask() {
+                const taskNameInput = document.getElementById('taskName');
+                const taskStepsInput = document.getElementById('taskSteps');
+                const taskImageInput = document.getElementById('taskImage');
+
                 const name = taskNameInput.value.trim();
                 if (!name) {
                     showStatusMessage('Por favor, insira um nome para o cronograma', 'error');
                     return;
                 }
-
 
                 const stepsText = taskStepsInput.value.trim();
                 if (!stepsText) {
@@ -2247,20 +2044,17 @@
                     return;
                 }
 
-
                 const steps = stepsText.split('\n')
                     .map(step => step.trim())
                     .filter(step => step.length > 0)
                     .map(step => ({ text: step, completed: false }));
-                // Processar imagens se fornecidas
+
                 let imagesData = [];
 
-                // Adicionar imagens capturadas
                 if (capturedImagesData.length > 0) {
                     imagesData = [...capturedImagesData];
                 }
 
-                // Adicionar imagens da galeria
                 if (taskImageInput.files && taskImageInput.files.length > 0) {
                     const filePromises = Array.from(taskImageInput.files).map(file => {
                         return new Promise((resolve) => {
@@ -2278,7 +2072,7 @@
                         const task = {
                             name,
                             steps,
-                            images: imagesData, // Mudança: 'images' em vez de 'image'
+                            images: imagesData,
                             createdAt: new Date().toISOString(),
                             completed: false
                         };
@@ -2286,14 +2080,13 @@
                         saveTask(task);
                         clearCreateForm();
                     });
-                    return; // Sair da função para aguardar o Promise
+                    return;
                 }
 
-                // Se não há imagens da galeria, continuar normalmente
                 const task = {
                     name,
                     steps,
-                    images: imagesData, // Mudança: 'images' em vez de 'image'
+                    images: imagesData,
                     createdAt: new Date().toISOString(),
                     completed: false
                 };
@@ -2301,15 +2094,17 @@
                 saveTask(task);
                 clearCreateForm();
 
-
                 if (steps.length === 0) {
                     showStatusMessage('Por favor, insira pelo menos um passo válido', 'error');
                     return;
                 }
-
             }
 
             function clearCreateForm() {
+                const taskNameInput = document.getElementById('taskName');
+                const taskStepsInput = document.getElementById('taskSteps');
+                const taskImageInput = document.getElementById('taskImage');
+
                 taskNameInput.value = '';
                 taskStepsInput.value = '';
                 taskImageInput.value = '';
@@ -2319,24 +2114,19 @@
                 isFirstAudioInput = true;
             }
 
-
             function saveTask(task) {
                 const transaction = db.transaction([STORE_NAME], 'readwrite');
                 const store = transaction.objectStore(STORE_NAME);
 
-
                 const request = store.add(task);
-
 
                 request.onsuccess = () => {
                     showStatusMessage('Cronograma criado com sucesso!');
-                    // Reset para modo compacto e mostrar as 2 últimas tarefas
                     if (viewMode === 'compact') {
                         totalLoadedTasks = 2;
                     }
                     loadTasks();
                 };
-
 
                 request.onerror = (event) => {
                     console.error('Erro ao salvar o cronograma:', event.target.error);
@@ -2344,268 +2134,521 @@
                 };
             }
 
-            // 3. TOGGLESTEPCOMPLETION OTIMIZADA
-            function toggleStepCompletion(event) {
-                const taskId = parseInt(event.target.dataset.taskid);
-                const stepIndex = parseInt(event.target.dataset.stepindex);
-                const completed = event.target.checked;
-
-                // console.log(`Atualizando passo ${stepIndex} da tarefa ${taskId}: ${completed}`);
-
-                // PRIMEIRO: Atualizar visualmente (sem piscada)
-                updateTaskProgressLocally(taskId, stepIndex, completed);
-
-                // SEGUNDO: Atualizar no banco de dados
-                const transaction = db.transaction([STORE_NAME], 'readwrite');
+            function openEditModal(taskId) {
+                const transaction = db.transaction([STORE_NAME], 'readonly');
                 const store = transaction.objectStore(STORE_NAME);
                 const request = store.get(taskId);
 
                 request.onsuccess = (event) => {
                     const task = event.target.result;
 
-                    if (task && task.steps[stepIndex]) {
-                        // Atualizar no objeto da tarefa
-                        task.steps[stepIndex].completed = completed;
+                    if (task) {
+                        const editTaskNameInput = document.getElementById('editTaskName');
+                        const editTaskStepsInput = document.getElementById('editTaskSteps');
+                        const currentImagePreview = document.getElementById('currentImagePreview');
+                        const taskModal = document.getElementById('taskModal');
 
-                        // Verificar se todos os passos foram concluídos
+                        editTaskNameInput.value = task.name;
+                        editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
+                        currentEditTaskId = taskId;
+
+                        if (task.images && task.images.length > 0) {
+                            let imagesHtml = `
+                    <div style="text-align: center;">
+                        <p>Imagens atuais:</p>
+                        <div style="display: flex; overflow-x: auto; gap: 10px; padding: 10px 0;">
+                `;
+
+                            task.images.forEach((image, index) => {
+                                imagesHtml += `
+                        <div style="position: relative; display: inline-block;">
+                            <img src="${image}" 
+                                 alt="Imagem ${index + 1}" 
+                                 class="edit-scroll-image" 
+                                 style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
+                            <button type="button" onclick="removeExistingImage(${index})"
+                                    style="position: absolute; top: -2px; right: -2px; background: #f0000000; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; padding: 0; justify-content: center; align-items: center;">❌</button>
+                        </div>
+                    `;
+                            });
+
+                            imagesHtml += `
+                        </div>
+                        <small>Adicione novas imagens ou remova as existentes</small>
+                    </div>
+                `;
+
+                            currentImagePreview.innerHTML = imagesHtml;
+
+                            setTimeout(() => {
+                                const editImages = currentImagePreview.querySelectorAll('.edit-scroll-image');
+                                const imageModal = document.getElementById('imageModal');
+                                const modalImage = document.getElementById('modalImage');
+
+                                editImages.forEach(img => {
+                                    img.addEventListener('click', () => {
+                                        modalImage.src = img.src;
+                                        imageModal.style.display = 'block';
+                                    });
+                                });
+                            }, 0);
+                        } else if (task.image) {
+                            currentImagePreview.innerHTML = `
+                    <div style="text-align: center;">
+                        <p>Imagem atual:</p>
+                        <img src="${task.image}" 
+                             alt="Imagem atual" 
+                             class="edit-scroll-image" 
+                             style="max-width: 200px; max-height: 150px; object-fit: cover; border-radius: 8px; cursor: pointer;">
+                        <br><small>Adicione novas imagens para substituir</small>
+                    </div>
+                `;
+
+                            setTimeout(() => {
+                                const img = currentImagePreview.querySelector('.edit-scroll-image');
+                                const imageModal = document.getElementById('imageModal');
+                                const modalImage = document.getElementById('modalImage');
+
+                                if (img) {
+                                    img.addEventListener('click', () => {
+                                        modalImage.src = img.src;
+                                        imageModal.style.display = 'block';
+                                    });
+                                }
+                            }, 0);
+                        } else {
+                            currentImagePreview.innerHTML = '<p>Nenhuma imagem definida</p>';
+                        }
+
+                        editCapturedImagesData = [];
+                        document.getElementById('editImagePreview').innerHTML = '';
+                        updateImagesCount('editImagesCount', 0);
+
+                        isEditModalFirstAudioInput = true;
+                        isEditModalRecording = false;
+
+                        const editAudioBtn = document.getElementById('editAudioBtn');
+                        const editAudioIcon = document.getElementById('editAudioIcon');
+                        const editAudioBtnText = document.getElementById('editAudioBtnText');
+
+                        if (editAudioBtn) editAudioBtn.classList.remove('recording');
+                        if (editAudioIcon) editAudioIcon.textContent = '🎤';
+                        if (editAudioBtnText) editAudioBtnText.textContent = '';
+                        hideEditAudioStatus();
+
+                        taskModal.style.display = 'flex';
+                    }
+                };
+
+                request.onerror = (event) => {
+                    console.error('Erro ao obter o cronograma para edição:', event.target.error);
+                    showStatusMessage('Erro ao obter o cronograma para edição', 'error');
+                };
+            }
+
+            function closeModal() {
+                if (isEditModalRecording) {
+                    stopEditModalRecording();
+                }
+
+                const taskModal = document.getElementById('taskModal');
+                const editTaskImageInput = document.getElementById('editTaskImage');
+                const currentImagePreview = document.getElementById('currentImagePreview');
+
+                taskModal.style.display = 'none';
+                currentEditTaskId = null;
+                editTaskImageInput.value = '';
+                currentImagePreview.innerHTML = '';
+                isEditModalFirstAudioInput = true;
+                isEditModalRecording = false;
+                window.removeImageFlag = false;
+                editCapturedImageData = null;
+                const editImagePreview = document.getElementById('editImagePreview');
+                if (editImagePreview) editImagePreview.innerHTML = '';
+            }
+
+            function saveTaskChanges() {
+                if (!currentEditTaskId) return;
+
+                const editTaskNameInput = document.getElementById('editTaskName');
+                const editTaskStepsInput = document.getElementById('editTaskSteps');
+                const editTaskImageInput = document.getElementById('editTaskImage');
+
+                const name = editTaskNameInput.value.trim();
+                if (!name) {
+                    showStatusMessage('Por favor, insira um nome para o cronograma', 'error');
+                    return;
+                }
+
+                const stepsText = editTaskStepsInput.value.trim();
+                if (!stepsText) {
+                    showStatusMessage('Por favor, insira pelo menos um passo', 'error');
+                    return;
+                }
+
+                const steps = stepsText.split('\n')
+                    .map(step => step.trim())
+                    .filter(step => step.length > 0)
+                    .map((stepText, index) => {
+                        return { text: stepText, completed: false };
+                    });
+
+                let allImages = [];
+
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const getRequest = store.get(currentEditTaskId);
+
+                getRequest.onsuccess = (event) => {
+                    const currentTask = event.target.result;
+                    if (currentTask && currentTask.images) {
+                        allImages = [...currentTask.images];
+                    } else if (currentTask && currentTask.image) {
+                        allImages = [currentTask.image];
+                    }
+
+                    if (editCapturedImagesData.length > 0) {
+                        allImages = [...allImages, ...editCapturedImagesData];
+                    }
+
+                    if (editTaskImageInput.files && editTaskImageInput.files.length > 0) {
+                        const filePromises = Array.from(editTaskImageInput.files).map(file => {
+                            return new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onload = function (e) {
+                                    resolve(e.target.result);
+                                };
+                                reader.readAsDataURL(file);
+                            });
+                        });
+
+                        Promise.all(filePromises).then(galleryImages => {
+                            allImages = [...allImages, ...galleryImages];
+
+                            if (imagesMarkedForRemoval.length > 0) {
+                                allImages = allImages.filter((_, index) => !imagesMarkedForRemoval.includes(index));
+                            }
+
+                            updateTaskInDatabase(name, steps, allImages);
+                            imagesMarkedForRemoval = [];
+                        });
+                    } else {
+                        if (imagesMarkedForRemoval.length > 0) {
+                            allImages = allImages.filter((_, index) => !imagesMarkedForRemoval.includes(index));
+                        }
+
+                        updateTaskInDatabase(name, steps, allImages);
+                        imagesMarkedForRemoval = [];
+                    }
+                };
+            }
+
+            function updateTaskInDatabase(name, steps, imagesData) {
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.get(currentEditTaskId);
+
+                request.onsuccess = (event) => {
+                    const task = event.target.result;
+
+                    if (task) {
+                        const updatedSteps = steps.map((newStep, index) => {
+                            if (task.steps[index]) {
+                                return {
+                                    text: newStep.text,
+                                    completed: task.steps[index].completed
+                                };
+                            }
+                            return { ...newStep, completed: false };
+                        });
+
+                        task.name = name;
+                        task.steps = updatedSteps;
+
+                        if (imagesData === 'REMOVE_IMAGES') {
+                            task.images = [];
+                        } else if (Array.isArray(imagesData)) {
+                            task.images = imagesData;
+                        }
+
                         task.completed = task.steps.every(step => step.completed);
 
-                        // Salvar no banco de dados
                         const updateRequest = store.put(task);
 
                         updateRequest.onsuccess = () => {
-                            // console.log('Passo salvo no banco com sucesso');
+                            showStatusMessage('Cronograma atualizado com sucesso!', 'success');
+                            closeModal();
+                            loadTasks();
 
-                            // OPCIONAL: Recarregar apenas se necessário (ex: mudança de status geral da tarefa)
-                            // Uncomment a linha abaixo se quiser sincronização completa periodicamente
-                            // setTimeout(() => loadTasks(), 2000);
+                            const editTaskImageInput = document.getElementById('editTaskImage');
+                            if (editTaskImageInput) editTaskImageInput.value = '';
+                            editCapturedImagesData = [];
+                            const preview = document.getElementById('editImagePreview');
+                            if (preview) preview.innerHTML = '';
+                            updateImagesCount('editImagesCount', 0);
+                            isEditModalFirstAudioInput = true;
                         };
 
                         updateRequest.onerror = (event) => {
-                            console.error('Erro ao atualizar o passo:', event.target.error);
-                            showStatusMessage('Erro ao atualizar o passo', 'error');
-                            // Em caso de erro, recarregar para sincronizar
-                            loadTasks();
+                            console.error('Erro ao atualizar cronograma:', event.target.error);
+                            showStatusMessage('Erro ao atualizar cronograma', 'error');
                         };
                     }
                 };
 
                 request.onerror = (event) => {
-                    console.error('Erro ao obter o cronograma:', event.target.error);
-                    showStatusMessage('Erro ao obter o cronograma', 'error');
-                    // Em caso de erro, recarregar
-                    loadTasks();
+                    console.error('Erro ao obter cronograma para edição:', event.target.error);
+                    showStatusMessage('Erro ao obter cronograma para edição', 'error');
                 };
             }
 
-            // 1. MELHORAR O CONTROLE DE EVENTOS
-            function handleTaskStepClick(event) {
-                // Evitar que o clique no checkbox dispare o evento duas vezes
-                if (event.target.type === 'checkbox') {
-                    return;
-                }
+            function deleteTask(taskId) {
+                if (confirm('Tem certeza que deseja excluir este cronograma?')) {
+                    const transaction = db.transaction([STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+                    const request = store.delete(taskId);
 
-                // NOVO: Parar completamente a propagação
-                event.stopPropagation();
-                event.preventDefault();
+                    request.onsuccess = () => {
+                        loadTasks();
+                        showStatusMessage('Cronograma excluído com sucesso!');
+                    };
 
-                // Encontrar o checkbox dentro do task-step clicado
-                const checkbox = event.currentTarget.querySelector('.task-step-checkbox');
-
-                if (checkbox) {
-                    // Alternar o estado do checkbox
-                    checkbox.checked = !checkbox.checked;
-
-                    // Disparar o evento de mudança para processar a atualização
-                    const changeEvent = new Event('change', { bubbles: false }); // bubbles: false é importante
-                    checkbox.dispatchEvent(changeEvent);
+                    request.onerror = (event) => {
+                        console.error('Erro ao excluir o cronograma:', event.target.error);
+                        showStatusMessage('Erro ao excluir o cronograma', 'error');
+                    };
                 }
             }
 
-            // 2. FUNÇÃO PARA ATUALIZAÇÃO LOCAL (SEM RECARREGAR TUDO)
-            function updateTaskProgressLocally(taskId, stepIndex, completed) {
-                const taskElement = document.querySelector(`[data-taskid="${taskId}"].edit-task-btn`).closest('.task-item');
+            function removeExistingImage(index) {
+                if (!imagesMarkedForRemoval.includes(index)) {
+                    imagesMarkedForRemoval.push(index);
+                }
+
+                const currentImagePreview = document.getElementById('currentImagePreview');
+                const imageContainers = currentImagePreview.querySelectorAll('.edit-scroll-image');
+                if (imageContainers[index]) {
+                    imageContainers[index].style.opacity = '0.3';
+                    imageContainers[index].style.pointerEvents = 'none';
+                    const button = imageContainers[index].parentElement.querySelector('button');
+                    if (button) {
+                        button.textContent = '↩️';
+                        button.onclick = () => undoRemoveImage(index);
+                    }
+                }
+            }
+
+            function undoRemoveImage(index) {
+                imagesMarkedForRemoval = imagesMarkedForRemoval.filter(i => i !== index);
+                const currentImagePreview = document.getElementById('currentImagePreview');
+                const imageContainers = currentImagePreview.querySelectorAll('.edit-scroll-image');
+                if (imageContainers[index]) {
+                    imageContainers[index].style.opacity = '1';
+                    imageContainers[index].style.pointerEvents = 'auto';
+                    const button = imageContainers[index].parentElement.querySelector('button');
+                    if (button) {
+                        button.textContent = '❌';
+                        button.onclick = () => removeExistingImage(index);
+                    }
+                }
+            }
+
+            function resetTaskSteps(taskId) {
+                const taskElement = document.querySelector(`[data-taskid="${taskId}"]`).closest('.task-item');
                 if (!taskElement) return;
 
-                // Atualizar visualmente o step
-                const stepCheckbox = taskElement.querySelector(`[data-stepindex="${stepIndex}"]`);
-                const stepElement = stepCheckbox.closest('.task-step');
+                const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
 
-                if (completed) {
-                    stepElement.classList.add('completed');
-                } else {
-                    stepElement.classList.remove('completed');
+                checkboxes.forEach(cb => {
+                    cb.checked = false;
+                    cb.dispatchEvent(new Event('change'));
+                });
+            }
+
+            // ==================== FUNÇÕES DE IMPORTAÇÃO E EXPORTAÇÃO ====================
+            function exportTasks() {
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = (event) => {
+                    const tasks = event.target.result;
+
+                    if (tasks.length === 0) {
+                        showStatusMessage('Não há cronogramas para exportar', 'error');
+                        return;
+                    }
+
+                    const dataStr = JSON.stringify(tasks, null, 2);
+                    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+                    const exportLink = document.createElement('a');
+                    exportLink.setAttribute('href', dataUri);
+                    exportLink.setAttribute('download', `cronogramas_${new Date().toISOString().slice(0, 10)}.json`);
+                    document.body.appendChild(exportLink);
+
+                    exportLink.click();
+                    document.body.removeChild(exportLink);
+
+                    showStatusMessage('Cronogramas exportados com sucesso!');
+                };
+
+                request.onerror = (event) => {
+                    console.error('Erro ao exportar cronogramas:', event.target.error);
+                    showStatusMessage('Erro ao exportar cronogramas', 'error');
+                };
+            }
+
+            function importTasks(event) {
+                const file = event.target.files[0];
+
+                if (!file) return;
+
+                const reader = new FileReader();
+
+                reader.onload = (e) => {
+                    try {
+                        const tasks = JSON.parse(e.target.result);
+
+                        if (!Array.isArray(tasks)) throw new Error('Formato inválido');
+
+                        if (confirm('Deseja substituir todos os cronogramas existentes?\n\n• OK = Substituir tudo\n• Cancelar = Mesclar com os existentes')) {
+                            const clearTransaction = db.transaction([STORE_NAME], 'readwrite');
+                            const clearStore = clearTransaction.objectStore(STORE_NAME);
+                            const clearRequest = clearStore.clear();
+
+                            clearRequest.onsuccess = () => {
+                                addImportedTasks(tasks, 'substituídos');
+                            };
+
+                            clearRequest.onerror = (error) => {
+                                console.error('Erro ao limpar cronogramas existentes:', error);
+                                showStatusMessage('Erro ao substituir cronogramas', 'error');
+                                event.target.value = '';
+                            };
+                        } else {
+                            const transaction = db.transaction([STORE_NAME], 'readonly');
+                            const store = transaction.objectStore(STORE_NAME);
+                            const getAllRequest = store.getAll();
+
+                            getAllRequest.onsuccess = () => {
+                                const existingTasks = getAllRequest.result;
+                                const existingNames = new Set(existingTasks.map(t => t.name.trim().toLowerCase()));
+
+                                const uniqueTasks = tasks.filter(t => !existingNames.has(t.name.trim().toLowerCase()));
+
+                                addImportedTasks(uniqueTasks, 'mesclados');
+                            };
+
+                            getAllRequest.onerror = (event) => {
+                                console.error('Erro ao buscar tarefas existentes para mesclar:', event.target.error);
+                                showStatusMessage('Erro ao verificar duplicatas', 'error');
+                                event.target.value = '';
+                            };
+                        }
+
+                    } catch (error) {
+                        console.error('Erro ao processar o arquivo JSON:', error);
+                        showStatusMessage('Erro ao processar o arquivo. Certifique-se de que é um arquivo JSON válido', 'error');
+                        event.target.value = '';
+                    }
+                };
+
+                reader.onerror = () => {
+                    console.error('Erro ao ler o arquivo');
+                    showStatusMessage('Erro ao ler o arquivo', 'error');
+                    event.target.value = '';
+                };
+
+                reader.readAsText(file);
+
+                function addImportedTasks(tasks, operation) {
+                    const transaction = db.transaction([STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(STORE_NAME);
+
+                    let importedCount = 0;
+                    let promises = [];
+
+                    tasks.forEach(task => {
+                        const cleanTask = { ...task };
+                        delete cleanTask.id;
+
+                        const promise = new Promise((resolve) => {
+                            const addRequest = store.add(cleanTask);
+
+                            addRequest.onsuccess = () => {
+                                importedCount++;
+                                resolve();
+                            };
+
+                            addRequest.onerror = () => {
+                                resolve();
+                            };
+                        });
+
+                        promises.push(promise);
+                    });
+
+                    Promise.all(promises).then(() => {
+                        loadTasks();
+                        showStatusMessage(`${importedCount} cronograma(s) ${operation} com sucesso!`);
+                        event.target.value = '';
+                    });
                 }
+            }
 
-                // Recalcular e atualizar a barra de progresso
-                const allSteps = taskElement.querySelectorAll('.task-step-checkbox');
-                const completedSteps = taskElement.querySelectorAll('.task-step-checkbox:checked');
-                const totalSteps = allSteps.length;
-                const completedCount = completedSteps.length;
-                const progressPercentage = totalSteps > 0 ? (completedCount / totalSteps) * 100 : 0;
-
-                // Atualizar barra de progresso
-                const progressBar = taskElement.querySelector('.progress-bar');
-                if (progressBar) {
-                    progressBar.style.width = `${progressPercentage}%`;
-                }
-
-                // Atualizar texto de progresso
-                const progressInfo = taskElement.querySelector('.task-info small');
-                if (progressInfo) {
-                    progressInfo.textContent = `Progresso: ${completedCount}/${totalSteps} (${Math.round(progressPercentage)}%)`;
-                }
-
-                // Atualizar classe da tarefa inteira se estiver 100% concluída
-                if (progressPercentage === 100) {
-                    taskElement.classList.add('completed');
-                } else {
-                    taskElement.classList.remove('completed');
-                }
-
-                // console.log(`Atualização local: ${completedCount}/${totalSteps} (${Math.round(progressPercentage)}%)`);
-            }//aqui o
-
-            // Modificar a função loadTasks para incluir a pesquisa e paginação
+            // ==================== FUNÇÕES DE RENDERIZAÇÃO ====================
             function loadTasks() {
                 const transaction = db.transaction([STORE_NAME], 'readonly');
                 const store = transaction.objectStore(STORE_NAME);
                 const request = store.getAll();
 
-
                 request.onsuccess = (event) => {
                     tasks = event.target.result;
 
-                    // Aplicar filtro de pesquisa (apenas no título)
-                    // Função genérica para busca normalizada
-                    /**
-                     * Filtra e destaca palavras buscadas em uma lista de objetos.
-                     *
-                     * @param {Array} items - Lista original de objetos.
-                     * @param {String} searchQuery - Texto digitado na busca.
-                     * @param {Function} fieldAccessor - Função que retorna o campo de texto a ser pesquisado.
-                     * @param {Boolean} highlight - Se verdadeiro, adiciona destaque nas palavras encontradas.
-                     * @returns {Array} - Lista de objetos com os campos filtrados e (opcionalmente) destacados.
-                     */
-                    function filterByNormalizedSearch(items, searchQuery, fieldAccessor, highlight = false) {
-                        const normalizeText = (text) => {
-                            return text
-                                .normalize("NFD")
-                                .replace(/[\u0300-\u036f]/g, "")
-                                .toLowerCase();
-                        };
+                    const searchInput = document.getElementById('searchInput');
+                    const searchValue = searchInput ? searchInput.value.trim() : '';
 
-                        const escapeRegExp = (string) => {
-                            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        };
-
-                        const normalizedQuery = normalizeText(searchQuery.trim());
-                        if (!normalizedQuery) return items.map(item => ({ ...item, highlighted: fieldAccessor(item) }));
-
-                        const queryWords = normalizedQuery.split(/\s+/);
-
-                        return items
-                            .filter(item => {
-                                const normalizedField = normalizeText(fieldAccessor(item));
-                                return queryWords.every(word => normalizedField.includes(word));
-                            })
-                            .map(item => {
-                                if (!highlight) return { ...item, highlighted: fieldAccessor(item) };
-
-                                const originalText = fieldAccessor(item);
-                                let highlightedText = originalText;
-
-                                queryWords.forEach(word => {
-                                    const regex = new RegExp(`(${escapeRegExp(word)})`, 'gi');
-
-                                    // Destacar palavra ignorando acentos e maiúsculas
-                                    highlightedText = highlightedText.replace(/([\wÀ-ÿ]+)/g, (match) => {
-                                        const normalizedMatch = normalizeText(match);
-                                        return queryWords.includes(normalizedMatch)
-                                            ? `<mark>${match}</mark>` : match;
-                                    });
-                                });
-
-                                return { ...item, highlighted: highlightedText };
-                            });
-                    }
-
-
-                    // Chamada no seu fluxo principal (dentro do listener ou função loadTasks)
-                    const searchValue = searchInput.value.trim();
                     filteredTasks = filterByNormalizedSearch(tasks, searchValue, task => task.name, true);
-                    renderTasksWithPagination();
 
-
-
-
-                    // Ordenar tarefas (mantendo a mesma lógica existente)
                     filteredTasks.sort((a, b) => {
-                        // Cronogramas concluídos vão para o final
                         if (a.completed && !b.completed) return 1;
                         if (!a.completed && b.completed) return -1;
-
-
-                        // Ordena por data de criação (mais recentes primeiro)
                         return new Date(b.createdAt) - new Date(a.createdAt);
                     });
 
+                    const taskList = document.getElementById('taskList');
 
-                    // Dependendo do modo de visualização, mostrar todas ou apenas algumas
                     if (viewMode === 'compact') {
-                        // No modo compacto, mostrar apenas o número especificado de tarefas (2 inicialmente)
                         const tasksToShow = filteredTasks.slice(0, totalLoadedTasks);
                         renderTasks(tasksToShow);
-
-
-                        // Atualizar botão "Mostrar Mais"
                         updateShowMoreButton();
-
-
-                        // Ocultar controles de paginação no modo compacto
                         document.getElementById('paginationControls').style.display = 'none';
                     } else {
-                        // No modo "todos", aplicar paginação normal
                         const totalPages = Math.ceil(filteredTasks.length / pageSize);
 
-
-                        // Corrigir página atual se necessário
                         if (currentPage > totalPages && totalPages > 0) {
                             currentPage = totalPages;
                         }
 
-
-                        // Calcular índices de início e fim para a página atual
                         const startIndex = (currentPage - 1) * pageSize;
                         const endIndex = Math.min(startIndex + pageSize, filteredTasks.length);
 
-
-                        // Obter tarefas para a página atual
                         const tasksForCurrentPage = filteredTasks.slice(startIndex, endIndex);
 
-
-                        // Atualizar informações de paginação
                         updatePaginationInfo(filteredTasks.length, totalPages);
-
-
-                        // Renderizar tarefas para a página atual
                         renderTasks(tasksForCurrentPage);
 
-
-                        // Ocultar botão "Mostrar Mais" no modo "todos"
-                        document.getElementById('showMoreBtn').style.display = 'none';
+                        const showMoreBtn = document.getElementById('showMoreBtn');
+                        if (showMoreBtn) showMoreBtn.style.display = 'none';
                     }
 
-
-                    // Exibir mensagem se nenhuma tarefa for encontrada com o filtro atual
                     if (tasks.length === 0 && searchValue) {
                         taskList.innerHTML = `<p style="text-align: center; margin-top: 20px;">Nenhum cronograma encontrado para "<strong>${searchValue}</strong>". Tente outra pesquisa.</p>`;
                     } else if (tasks.length === 0) {
                         taskList.innerHTML = '<p style="text-align: center; margin-top: 20px;">Nenhum cronograma encontrado. Crie um novo usando o formulário acima.</p>';
                     }
-
                 };
-
 
                 request.onerror = (event) => {
                     console.error('Erro ao carregar cronogramas:', event.target.error);
@@ -2613,8 +2656,50 @@
                 };
             }
 
+            function filterByNormalizedSearch(items, searchQuery, fieldAccessor, highlight = false) {
+                const normalizeText = (text) => {
+                    return text
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase();
+                };
+
+                const escapeRegExp = (string) => {
+                    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                };
+
+                const normalizedQuery = normalizeText(searchQuery.trim());
+                if (!normalizedQuery) return items.map(item => ({ ...item, highlighted: fieldAccessor(item) }));
+
+                const queryWords = normalizedQuery.split(/\s+/);
+
+                return items
+                    .filter(item => {
+                        const normalizedField = normalizeText(fieldAccessor(item));
+                        return queryWords.every(word => normalizedField.includes(word));
+                    })
+                    .map(item => {
+                        if (!highlight) return { ...item, highlighted: fieldAccessor(item) };
+
+                        const originalText = fieldAccessor(item);
+                        let highlightedText = originalText;
+
+                        queryWords.forEach(word => {
+                            const regex = new RegExp(`(${escapeRegExp(word)})`, 'gi');
+
+                            highlightedText = highlightedText.replace(/([\wÀ-ÿ]+)/g, (match) => {
+                                const normalizedMatch = normalizeText(match);
+                                return queryWords.includes(normalizedMatch)
+                                    ? `<mark>${match}</mark>` : match;
+                            });
+                        });
+
+                        return { ...item, highlighted: highlightedText };
+                    });
+            }
 
             function renderTasks(tasks, searchValue = '') {
+                const taskList = document.getElementById('taskList');
                 taskList.innerHTML = '';
 
                 if (tasks.length === 0) {
@@ -2624,132 +2709,115 @@
 
                 tasks.forEach(task => {
                     const taskElement = document.createElement('div');
-                    // Verificar se a tarefa deve estar expandida
                     const isExpanded = expandedTasks.has(task.id);
                     taskElement.className = `task-item ${task.completed ? 'completed' : ''} ${isExpanded ? 'expanded' : 'collapsed'}`;
-                    // Calcular o progresso
+
                     const completedSteps = task.steps.filter(step => step.completed).length;
                     const totalSteps = task.steps.length;
                     const progressPercentage = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
                     taskElement.innerHTML = `
-                
-            
-                <div class="task-content">
-                                ${(task.images && task.images.length > 0) || task.image ? `
+            <div class="task-content">
+                ${(task.images && task.images.length > 0) || task.image ? `
                     <div class="task-image-container">
-                <div class="task-images-scroll ${task.images?.length === 1 ? 'single-image' : ''}" style="display: none;">
-                    ${(task.images && task.images.length > 0)
+                        <div class="task-images-scroll ${task.images?.length === 1 ? 'single-image' : ''}" style="display: none;">
+                            ${(task.images && task.images.length > 0)
                                 ? task.images.map((img, index) => `
-                            <img src="${img}" alt="Imagem ${index + 1}" class="scroll-image">
-                        `).join('')
+                                    <img src="${img}" alt="Imagem ${index + 1}" class="scroll-image">
+                                `).join('')
                                 : `<img src="${task.image}" alt="Imagem do cronograma" class="scroll-image">`}
-                </div>
-
-
+                        </div>
                     </div>
-                        ` : ''}
-
+                ` : ''}
 
                 <div class="task-name">${task.highlighted || task.name}</div>
-                            <div class="task-progress">
-                                <div class="progress-bar" style="width: ${progressPercentage}%"></div>
-                            </div>
-                            <div class="task-info">
-                                <small>Progresso: ${completedSteps}/${totalSteps} (${Math.round(progressPercentage)}%)</small>
-                            </div>
+                <div class="task-progress">
+                    <div class="progress-bar" style="width: ${progressPercentage}%"></div>
+                </div>
+                <div class="task-info">
+                    <small>Progresso: ${completedSteps}/${totalSteps} (${Math.round(progressPercentage)}%)</small>
+                </div>
 
-                            <!-- NOVO: Botão para expandir/recolher -->
-                            
-                            <!-- 🔍 BUSCA LOCAL NOS STEPS -->
-                                
-
-
-                            <!-- Os passos começam ocultos ou expandidos conforme o estado -->
-                            <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
-                                ${task.steps.map((step, index) => `
-                                    <div class="task-step ${step.completed ? 'completed' : ''}">
-                                        <input type="checkbox" class="task-step-checkbox" data-taskid="${task.id}" data-stepindex="${index}" ${step.completed ? 'checked' : ''}>
-                                        <div class="step-content">${step.text}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                            <div class="task-local-search">
-    <button class="step-voice-search-btn cuqui" title="Pesquisar por voz">🎙️</button>
-    <button class="clear-step-search-btn cuqui" title="Limpar pesquisa">✖</button>
-    <button class="prev-match-btn cuqui1" title="Anterior">◀</button>
-    <button class="next-match-btn cuqui1" title="Próxima">▶</button>
-    <input
-        type="text"
-        class="step-search-input cuqui0"
-        placeholder="Buscar tarefa..."
-    />
-</div>
-                            </div>
-                            <div class="botoesExpandir">
-                                <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
-                                    <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
-                                    <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
-                                    </button>
-                                    <button class="toggle-image-btn colorir" data-taskid="${task.id}">
-                                    Mostrar imagens
-                                </button>
-                            
-                            </div>
-                            <div class="boxBonito">
-                                <div class="task-actions">
-                                    
-                                <button class="delete-task-btn danger" data-taskid="${task.id}">🗑️ Deletar</button>
-                                <button onclick="resetTaskSteps('${task.id}')" class="reset-btn">🔄 Resetar</button>
-                                <button class="edit-task-btn" data-taskid="${task.id}">✏️ Editar</button>
-                                <button class="read-task-btn" data-taskid="${task.id}">
-                                <span class="read-btn-text">🔊ler</span>
-                                </button>
-                                <button class="step-read-btn" data-taskid="${task.id}">
-                                <span class="read-btn-text">▶️ Executar</span>
-                                </button>
-                                
-                            </div>
-                    `;
-
-
+                <div class="task-steps ${isExpanded ? '' : 'collapsed'}">
+                    ${task.steps.map((step, index) => `
+                        <div class="task-step ${step.completed ? 'completed' : ''}">
+                            <input type="checkbox" class="task-step-checkbox" data-taskid="${task.id}" data-stepindex="${index}" ${step.completed ? 'checked' : ''}>
+                            <div class="step-content">${step.text}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="task-local-search">
+                    <button class="step-voice-search-btn cuqui" title="Pesquisar por voz">🎙️</button>
+                    <button class="clear-step-search-btn cuqui" title="Limpar pesquisa">✖</button>
+                    <button class="prev-match-btn cuqui" title="Anterior">◀</button>
+                    <button class="next-match-btn cuqui" title="Próxima">▶</button>
+                    <input
+                        type="text"
+                        class="step-search-input cuqui0"
+                        placeholder="Buscar Tarefa..."
+                    />
+                </div>
+            </div>
+            <div class="botoesExpandir">
+                <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
+                    <span class="expand-icon">${isExpanded ? '▲' : '▼'}</span>
+                    <span class="expand-text">${isExpanded ? 'Recolher' : `Expandir (${totalSteps} passos)`}</span>
+                </button>
+                <button class="toggle-image-btn colorir" data-taskid="${task.id}">
+                    Mostrar imagens
+                </button>
+            </div>
+            <div class="boxBonito">
+                <div class="task-actions">
+                    <button class="delete-task-btn danger" data-taskid="${task.id}">🗑️ Deletar</button>
+                    <button onclick="resetTaskSteps('${task.id}')" class="reset-btn">🔄 Resetar</button>
+                    <button class="edit-task-btn" data-taskid="${task.id}">✏️ Editar</button>
+                    <button class="read-task-btn" data-taskid="${task.id}">
+                        <span class="read-btn-text">🔊 Ler</span>
+                    </button>
+                    <button class="step-read-btn" data-taskid="${task.id}">
+                        <span class="read-btn-text">▶️ Executar</span>
+                    </button>
+                </div>
+            </div>
+        `;
 
                     taskList.appendChild(taskElement);
-                    const clearBtn = taskElement.querySelector('.clear-step-search-btn');
 
+                    // Event listeners
+                    const clearBtn = taskElement.querySelector('.clear-step-search-btn');
                     if (clearBtn) {
                         clearBtn.addEventListener('click', () => {
                             clearStepSearch(taskElement);
                         });
                     }
 
-                    // 🔍 BUSCA LOCAL NOS STEPS (texto)
                     const stepSearchInput = taskElement.querySelector('.step-search-input');
-
                     if (stepSearchInput) {
                         stepSearchInput.addEventListener('input', (e) => {
                             focusStepBySearch(taskElement, e.target.value);
                         });
                     }
-                    const voiceBtn = taskElement.querySelector('.step-voice-search-btn');
 
+                    const voiceBtn = taskElement.querySelector('.step-voice-search-btn');
                     if (voiceBtn && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
                         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                        const recognition = new SpeechRecognition();
+                        const stepRecognition = new SpeechRecognition();
 
-                        recognition.lang = 'pt-BR';
-                        recognition.interimResults = false;
+                        stepRecognition.lang = 'pt-BR';
+                        stepRecognition.interimResults = false;
 
                         voiceBtn.addEventListener('click', () => {
-                            recognition.start();
+                            stepRecognition.start();
                         });
 
-                        recognition.onresult = (event) => {
+                        stepRecognition.onresult = (event) => {
                             const transcript = event.results[0][0].transcript;
                             stepSearchInput.value = transcript;
                             stepSearchInput.dispatchEvent(new Event('input'));
                         };
                     }
+
                     // Botões de navegação entre matches
                     const prevBtn = taskElement.querySelector('.prev-match-btn');
                     const nextBtn = taskElement.querySelector('.next-match-btn');
@@ -2772,75 +2840,43 @@
                         });
                     }
 
-                    // Event listener para clique nas imagens (abrir modal)
                     const scrollImages = taskElement.querySelectorAll('.scroll-image');
-
                     scrollImages.forEach((img, index) => {
                         img.addEventListener('click', () => {
-
-                            // guarda todas as imagens da tarefa
                             modalImages = task.images && task.images.length > 0
                                 ? task.images
                                 : [task.image];
 
-                            // imagem clicada
                             currentImageIndex = index;
 
+                            const imageModal = document.getElementById('imageModal');
+                            const modalImage = document.getElementById('modalImage');
                             modalImage.src = modalImages[currentImageIndex];
                             imageModal.style.display = 'block';
                         });
                     });
 
-                    // Event listener para navegar nas imagens pelo teclaco e fechar com esc
-                    document.addEventListener('keydown', e => {
-                        if (imageModal.style.display !== 'block') return;
-
-                        if (e.key === 'ArrowRight') nextImage();
-                        if (e.key === 'ArrowLeft') prevImage();
-                        if (e.key === 'Escape') imageModal.style.display = 'none';
-                    });
-
-
-
-
-                    // Event listener para fechar o modal
-                    const modal = document.getElementById('imageModal');
-                    const closeBtn = modal.querySelector('.close-modal');
-                    closeBtn.addEventListener('click', () => {
-                        modal.style.display = 'none';
-                    });
-
-                    // Também fecha se clicar fora da imagem
-                    modal.addEventListener('click', (e) => {
-                        if (e.target === modal) {
-                            modal.style.display = 'none';
-                        }
-                    });
-
-
-                    // Event listeners existentes para checkboxes
                     const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
                     checkboxes.forEach(checkbox => {
                         checkbox.addEventListener('change', toggleStepCompletion);
                     });
 
-                    // Event listeners existentes para clique nos task-steps
                     const taskSteps = taskElement.querySelectorAll('.task-step');
                     taskSteps.forEach(taskStep => {
                         taskStep.addEventListener('click', handleTaskStepClick);
                     });
 
-                    // Event listeners existentes para botões
                     const editBtn = taskElement.querySelector('.edit-task-btn');
                     const deleteBtn = taskElement.querySelector('.delete-task-btn');
                     const readBtn = taskElement.querySelector('.read-task-btn');
                     const stepReadBtn = taskElement.querySelector('.step-read-btn');
                     const toggleImageBtn = taskElement.querySelector('.toggle-image-btn');
+
                     if (toggleImageBtn) {
                         toggleImageBtn.addEventListener('click', (e) => {
-                            e.stopPropagation(); // evita conflitos com outros cliques
+                            e.stopPropagation();
                             const imageContainer = taskElement.querySelector('.task-images-scroll');
-                            if (!imageContainer) return; // não faz nada se não houver container
+                            if (!imageContainer) return;
 
                             const isVisible = imageContainer.style.display === 'flex';
                             imageContainer.style.display = isVisible ? 'none' : 'flex';
@@ -2848,24 +2884,149 @@
                         });
                     }
 
-
-
-
-
-
-
                     editBtn.addEventListener('click', () => openEditModal(task.id));
                     deleteBtn.addEventListener('click', () => deleteTask(task.id));
                     readBtn.addEventListener('click', () => toggleReadTask(task.id));
                     stepReadBtn.addEventListener('click', () => readAndCheckNextStep(task.id));
 
-
-                    // NOVO: Event listener para o botão de expandir
                     const expandBtn = taskElement.querySelector('.expand-btn');
                     expandBtn.addEventListener('click', (e) => toggleTaskExpansion(e, task.id));
                 });
             }
-            // funçao focu no step atual
+
+            function toggleStepCompletion(event) {
+                const taskId = parseInt(event.target.dataset.taskid);
+                const stepIndex = parseInt(event.target.dataset.stepindex);
+                const completed = event.target.checked;
+
+                updateTaskProgressLocally(taskId, stepIndex, completed);
+
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.get(taskId);
+
+                request.onsuccess = (event) => {
+                    const task = event.target.result;
+
+                    if (task && task.steps[stepIndex]) {
+                        task.steps[stepIndex].completed = completed;
+                        task.completed = task.steps.every(step => step.completed);
+
+                        const updateRequest = store.put(task);
+
+                        updateRequest.onsuccess = () => {
+                            // Sucesso
+                        };
+
+                        updateRequest.onerror = (event) => {
+                            console.error('Erro ao atualizar o passo:', event.target.error);
+                            showStatusMessage('Erro ao atualizar o passo', 'error');
+                            loadTasks();
+                        };
+                    }
+                };
+
+                request.onerror = (event) => {
+                    console.error('Erro ao obter o cronograma:', event.target.error);
+                    showStatusMessage('Erro ao obter o cronograma', 'error');
+                    loadTasks();
+                };
+            }
+
+            function handleTaskStepClick(event) {
+                if (event.target.type === 'checkbox') {
+                    return;
+                }
+
+                event.stopPropagation();
+                event.preventDefault();
+
+                const checkbox = event.currentTarget.querySelector('.task-step-checkbox');
+
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    const changeEvent = new Event('change', { bubbles: false });
+                    checkbox.dispatchEvent(changeEvent);
+                }
+            }
+
+            function updateTaskProgressLocally(taskId, stepIndex, completed) {
+                const taskElement = document.querySelector(`[data-taskid="${taskId}"].edit-task-btn`).closest('.task-item');
+                if (!taskElement) return;
+
+                const stepCheckbox = taskElement.querySelector(`[data-stepindex="${stepIndex}"]`);
+                const stepElement = stepCheckbox.closest('.task-step');
+
+                if (completed) {
+                    stepElement.classList.add('completed');
+                } else {
+                    stepElement.classList.remove('completed');
+                }
+
+                const allSteps = taskElement.querySelectorAll('.task-step-checkbox');
+                const completedSteps = taskElement.querySelectorAll('.task-step-checkbox:checked');
+                const totalSteps = allSteps.length;
+                const completedCount = completedSteps.length;
+                const progressPercentage = totalSteps > 0 ? (completedCount / totalSteps) * 100 : 0;
+
+                const progressBar = taskElement.querySelector('.progress-bar');
+                if (progressBar) {
+                    progressBar.style.width = `${progressPercentage}%`;
+                }
+
+                const progressInfo = taskElement.querySelector('.task-info small');
+                if (progressInfo) {
+                    progressInfo.textContent = `Progresso: ${completedCount}/${totalSteps} (${Math.round(progressPercentage)}%)`;
+                }
+
+                if (progressPercentage === 100) {
+                    taskElement.classList.add('completed');
+                } else {
+                    taskElement.classList.remove('completed');
+                }
+            }
+
+            function toggleTaskExpansion(event, taskId) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const expandBtn = event.currentTarget;
+                const taskElement = expandBtn.closest('.task-item');
+                const taskSteps = taskElement.querySelector('.task-steps');
+                const expandIcon = expandBtn.querySelector('.expand-icon');
+                const expandText = expandBtn.querySelector('.expand-text');
+
+                const isCurrentlyCollapsed = taskElement.classList.contains('collapsed');
+
+                if (isCurrentlyCollapsed) {
+                    expandedTasks.add(taskId);
+                    taskElement.classList.remove('collapsed');
+                    taskElement.classList.add('expanded');
+                    taskSteps.classList.remove('collapsed');
+                    expandBtn.classList.add('expanded');
+
+                    expandIcon.textContent = '▲';
+                    expandText.textContent = 'Recolher';
+
+                    setTimeout(() => {
+                        focusPendingStep(taskElement);
+                    }, 50);
+                } else {
+                    clearStepSearch(taskElement);
+                    expandedTasks.delete(taskId);
+                    taskElement.classList.add('collapsed');
+                    taskElement.classList.remove('expanded');
+                    taskSteps.classList.add('collapsed');
+                    expandBtn.classList.remove('expanded');
+
+                    expandIcon.textContent = '▼';
+
+                    const totalSteps = taskSteps.querySelectorAll('.task-step').length;
+                    expandText.textContent = `Expandir (${totalSteps} passos)`;
+                }
+            }
+
+            // ==================== FUNÇÕES DE BUSCA LOCAL ====================
             function focusStepBySearch(taskElement, searchValue) {
                 const normalizeText = (text) => {
                     return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -2879,7 +3040,6 @@
                 const steps = taskElement.querySelectorAll('.task-step');
                 const normalizedSearch = normalizeText(searchValue);
 
-                // Limpar destaques anteriores
                 steps.forEach(step => {
                     step.classList.remove('step-focus');
                     const content = step.querySelector('.step-content');
@@ -2888,7 +3048,6 @@
                     }
                 });
 
-                // Encontrar todas as ocorrências
                 currentSearchMatches = [];
                 steps.forEach((step, stepIndex) => {
                     const content = step.querySelector('.step-content');
@@ -2898,12 +3057,10 @@
                     const normalizedText = normalizeText(originalText);
 
                     if (normalizedText.includes(normalizedSearch)) {
-                        // Guardar texto original
                         if (!content.dataset.original) {
                             content.dataset.original = originalText;
                         }
 
-                        // Destacar palavras encontradas
                         let highlightedText = originalText;
                         const regex = new RegExp(`(${searchValue.split('').join('[àáâãäåèéêëìíîïòóôõöùúûü]*')})`, 'gi');
                         highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
@@ -2915,27 +3072,19 @@
 
                 if (currentSearchMatches.length === 0) return;
 
-                // Resetar índice
                 currentMatchIndex = 0;
-
-                // Focar no primeiro match
                 focusOnCurrentMatch(taskElement);
-
-                // Atualizar contador
                 updateSearchCounter(taskElement);
             }
 
             function focusOnCurrentMatch(taskElement) {
                 if (currentSearchMatches.length === 0) return;
 
-                // Remover foco anterior
                 currentSearchMatches.forEach(step => step.classList.remove('step-focus'));
 
-                // Adicionar foco no atual
                 const currentStep = currentSearchMatches[currentMatchIndex];
                 currentStep.classList.add('step-focus');
 
-                // Scroll suave
                 currentStep.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center'
@@ -2955,22 +3104,11 @@
                     const counter = document.createElement('span');
                     counter.className = 'search-counter';
                     counter.textContent = `${currentMatchIndex + 1}/${currentSearchMatches.length}`;
-                    counter.style.cssText = ' margin-right: 5px; color: #666; font-size: 12px;';
+                    counter.style.cssText = 'margin-left: 10px; color: #666; font-size: 12px;';
                     searchInput.parentElement.appendChild(counter);
                 }
             }
 
-
-            function filterStepsInsideTask(taskElement, searchValue) {
-                const steps = taskElement.querySelectorAll('.task-step');
-                const value = searchValue.toLowerCase().trim();
-
-                steps.forEach(step => {
-                    const text = step.querySelector('.step-content')?.textContent.toLowerCase() || '';
-                    step.style.display = text.includes(value) ? '' : 'none';
-                });
-            }
-            // funçao de limpara a pesquisa do tasks
             function clearStepSearch(taskElement) {
                 const input = taskElement.querySelector('.step-search-input');
                 const steps = taskElement.querySelectorAll('.task-step');
@@ -2983,7 +3121,6 @@
                     step.classList.remove('step-focus');
                     step.style.display = '';
 
-                    // Restaurar texto original
                     const content = step.querySelector('.step-content');
                     if (content && content.dataset.original) {
                         content.innerHTML = content.dataset.original;
@@ -2995,923 +3132,42 @@
                 currentMatchIndex = 0;
             }
 
+            // ==================== FUNÇÕES DE PAGINAÇÃO ====================
+            function updatePaginationInfo(totalItems, totalPages) {
+                const pageInfo = document.getElementById('pageInfo');
+                const prevPageBtn = document.getElementById('prevPageBtn');
+                const nextPageBtn = document.getElementById('nextPageBtn');
+                const paginationControls = document.getElementById('paginationControls');
 
+                if (pageInfo) {
+                    pageInfo.textContent = ` ${currentPage} de ${totalPages || 1}`;
+                }
 
-            // Event listener para navegar nas imagens pelo celular arrastando na tela
-            const prevArrow = imageModal.querySelector('.nav-arrow.left');
-            const nextArrow = imageModal.querySelector('.nav-arrow.right');
+                if (prevPageBtn) prevPageBtn.disabled = currentPage <= 1;
+                if (nextPageBtn) nextPageBtn.disabled = currentPage >= totalPages;
 
-            prevArrow.addEventListener('click', e => {
-                e.stopPropagation();
-                prevImage();
-            });
-
-            nextArrow.addEventListener('click', e => {
-                e.stopPropagation();
-                nextImage();
-            });
-            function toggleTaskExpansion(event, taskId) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                const expandBtn = event.currentTarget;
-                const taskElement = expandBtn.closest('.task-item');
-                const taskSteps = taskElement.querySelector('.task-steps');
-                const expandIcon = expandBtn.querySelector('.expand-icon');
-                const expandText = expandBtn.querySelector('.expand-text');
-
-                const isCurrentlyCollapsed = taskElement.classList.contains('collapsed');
-
-                if (isCurrentlyCollapsed) {
-                    // Expandir
-                    expandedTasks.add(taskId); // Adicionar ao conjunto de expandidos
-                    taskElement.classList.remove('collapsed');
-                    taskElement.classList.add('expanded');
-                    taskSteps.classList.remove('collapsed');
-                    expandBtn.classList.add('expanded');
-
-                    expandIcon.textContent = '▲';
-                    expandText.textContent = 'Recolher';
-
-                    setTimeout(() => {
-                        focusPendingStep(taskElement);
-                    }, 50);
-                    // console.log(`Cronograma "${taskId}" expandido`);
-                } else {
-                    // 🔴 RECOLHER → LIMPA BUSCA LOCAL
-                    clearStepSearch(taskElement);
-                    // Recolher
-                    expandedTasks.delete(taskId); // Remover do conjunto de expandidos
-                    taskElement.classList.add('collapsed');
-                    taskElement.classList.remove('expanded');
-                    taskSteps.classList.add('collapsed');
-                    expandBtn.classList.remove('expanded');
-
-                    expandIcon.textContent = '▼';
-
-                    // Reobter a contagem de passos para o texto
-                    const totalSteps = taskSteps.querySelectorAll('.task-step').length;
-                    expandText.textContent = `Expandir (${totalSteps} passos)`;
-
-                    // console.log(`Cronograma "${taskId}" recolhido`);
+                if (paginationControls) {
+                    paginationControls.style.display = totalPages <= 1 ? 'none' : 'flex';
                 }
             }
 
-            // Modificar a função existente para resetar as variáveis de áudio
-            function openEditModal(taskId) {
-                const transaction = db.transaction([STORE_NAME], 'readonly');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.get(taskId);
+            function updateShowMoreButton() {
+                const showMoreBtn = document.getElementById('showMoreBtn');
 
-                request.onsuccess = (event) => {
-                    const task = event.target.result;
-
-                    if (task) {
-                        editTaskNameInput.value = task.name;
-                        editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
-                        currentEditTaskId = taskId;
-
-                        // Mostrar imagens atuais se existirem (scroll e clique ampliado)
-                        if (task.images && task.images.length > 0) {
-                            let imagesHtml = `
-        <div style="text-align: center;">
-            <p>Imagens atuais:</p>
-            <div style="display: flex; overflow-x: auto; gap: 10px; padding: 10px 0;">
-    `;
-
-                            task.images.forEach((image, index) => {
-                                imagesHtml += `
-            <div style="position: relative; display: inline-block;">
-                <img src="${image}" 
-                     alt="Imagem ${index + 1}" 
-                     class="edit-scroll-image" 
-                     style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
-                <button type="button" onclick="removeExistingImage(${index})"
-                        <button style="
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    background: #f0000000;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    padding: 0;
-    justify-content: center;
-    align-items: center;
-">
-  ❌
-</button>
-            </div>
-        `;
-                            });
-
-                            imagesHtml += `
-            </div>
-            <small>Adicione novas imagens ou remova as existentes</small>
-        </div>
-    `;
-
-                            currentImagePreview.innerHTML = imagesHtml;
-
-                            // 🔥 ADICIONAR EVENTO DE CLIQUE para ampliar imagem
-                            setTimeout(() => {
-                                const editImages = currentImagePreview.querySelectorAll('.edit-scroll-image');
-                                editImages.forEach(img => {
-                                    img.addEventListener('click', () => {
-                                        modalImage.src = img.src;
-                                        imageModal.style.display = 'block';
-                                    });
-                                });
-                            }, 0);
-                        }
-                        else if (task.image) {
-                            // Compatibilidade com versão antiga (uma imagem)
-                            currentImagePreview.innerHTML = `
-                    <div style="text-align: center;">
-                        <p>Imagem atual:</p>
-                        <img src="${task.image}" 
-                             alt="Imagem atual" 
-                             class="edit-scroll-image" 
-                             style="max-width: 200px; max-height: 150px; object-fit: cover; border-radius: 8px; cursor: pointer;">
-                        <br><small>Adicione novas imagens para substituir</small>
-                    </div>
-                `;
-
-                            // Clique para ampliar imagem única
-                            setTimeout(() => {
-                                const img = currentImagePreview.querySelector('.edit-scroll-image');
-                                if (img) {
-                                    img.addEventListener('click', () => {
-                                        modalImg.src = img.src;
-                                        modal.style.display = 'flex';
-                                    });
-                                }
-                            }, 0);
-
-                        } else {
-                            currentImagePreview.innerHTML = '<p>Nenhuma imagem definida</p>';
-                        }
-
-                        // Resetar arrays de imagens do modal
-                        editCapturedImagesData = [];
-                        document.getElementById('editImagePreview').innerHTML = '';
-                        updateImagesCount('editImagesCount', 0);
-
-                        // Resetar variáveis de áudio do modal
-                        isEditModalFirstAudioInput = true;
-                        isEditModalRecording = false;
-                        editAudioBtn.classList.remove('recording');
-                        editAudioIcon.textContent = '🎤';
-                        editAudioBtnText.textContent = '';
-                        hideEditAudioStatus();
-
-                        taskModal.style.display = 'flex';
-                    }
-                };
-
-                request.onerror = (event) => {
-                    console.error('Erro ao obter o cronograma para edição:', event.target.error);
-                    showStatusMessage('Erro ao obter o cronograma para edição', 'error');
-                };
-            }
-
-
-            function removeExistingImage(index) {
-                if (!imagesMarkedForRemoval.includes(index)) {
-                    imagesMarkedForRemoval.push(index);
-                }
-
-                // Esconde visualmente a imagem no modal, sem removê-la do objeto `task` ainda
-                const imageContainers = currentImagePreview.querySelectorAll('.edit-scroll-image');
-                if (imageContainers[index]) {
-                    imageContainers[index].style.opacity = '0.3'; // visual desativado
-                    imageContainers[index].style.pointerEvents = 'none';
-                    const button = imageContainers[index].parentElement.querySelector('button');
-                    if (button) {
-                        button.textContent = '↩️'; // seta para reverter
-                        button.onclick = () => undoRemoveImage(index);
-                    }
-                }
-            }
-            function undoRemoveImage(index) {
-                imagesMarkedForRemoval = imagesMarkedForRemoval.filter(i => i !== index);
-                const imageContainers = currentImagePreview.querySelectorAll('.edit-scroll-image');
-                if (imageContainers[index]) {
-                    imageContainers[index].style.opacity = '1';
-                    imageContainers[index].style.pointerEvents = 'auto';
-                    const button = imageContainers[index].parentElement.querySelector('button');
-                    if (button) {
-                        button.textContent = '❌';
-                        button.onclick = () => removeExistingImage(index);
-                    }
-                }
-            }
-
-
-
-            // Modificar a função existente para parar gravação ao fechar
-            function closeModal() {
-                // Parar gravação se estiver ativa
-                if (isEditModalRecording) {
-                    stopEditModalRecording();
-                }
-
-                taskModal.style.display = 'none';
-
-                // Resetar variáveis de áudio
-                taskModal.style.display = 'none';
-                currentEditTaskId = null;
-                editTaskImageInput.value = '';
-                currentImagePreview.innerHTML = '';
-                isEditModalFirstAudioInput = true;
-                isEditModalRecording = false;
-                window.removeImageFlag = false; // Limpar flag de remoção
-                editCapturedImageData = null;
-                removeImage('editImagePreview');
-            }
-
-            function saveTaskChanges() {
-                if (!currentEditTaskId) return;
-
-                const name = editTaskNameInput.value.trim();
-                if (!name) {
-                    showStatusMessage('Por favor, insira um nome para o cronograma', 'error');
-                    return;
-                }
-
-                const stepsText = editTaskStepsInput.value.trim();
-                if (!stepsText) {
-                    showStatusMessage('Por favor, insira pelo menos um passo', 'error');
-                    return;
-                }
-
-                const steps = stepsText.split('\n')
-                    .map(step => step.trim())
-                    .filter(step => step.length > 0)
-                    .map((stepText, index) => {
-                        // Preservar o status de conclusão dos passos existentes
-                        const transaction = db.transaction([STORE_NAME], 'readonly');
-                        const store = transaction.objectStore(STORE_NAME);
-                        const request = store.get(currentEditTaskId);
-
-                        return { text: stepText, completed: false }; // Por padrão, novos passos não concluídos
-                    });
-
-                // Processar imagens
-                let allImages = [];
-
-                // Manter imagens existentes (se houver)
-                const transaction = db.transaction([STORE_NAME], 'readonly');
-                const store = transaction.objectStore(STORE_NAME);
-                const getRequest = store.get(currentEditTaskId);
-
-                getRequest.onsuccess = (event) => {
-                    const currentTask = event.target.result;
-                    if (currentTask && currentTask.images) {
-                        allImages = [...currentTask.images];
-                    } else if (currentTask && currentTask.image) {
-                        allImages = [currentTask.image]; // Compatibilidade
-                    }
-
-                    // Adicionar novas imagens capturadas
-                    if (editCapturedImagesData.length > 0) {
-                        allImages = [...allImages, ...editCapturedImagesData];
-                    }
-
-                    // Processar imagens da galeria
-                    if (editTaskImageInput.files && editTaskImageInput.files.length > 0) {
-                        const filePromises = Array.from(editTaskImageInput.files).map(file => {
-                            return new Promise((resolve) => {
-                                const reader = new FileReader();
-                                reader.onload = function (e) {
-                                    resolve(e.target.result);
-                                };
-                                reader.readAsDataURL(file);
-                            });
-                        });
-
-                        Promise.all(filePromises).then(galleryImages => {
-                            allImages = [...allImages, ...galleryImages];
-
-                            // 🔥 Remover as marcadas para remoção (somente agora)
-                            if (imagesMarkedForRemoval.length > 0) {
-                                allImages = allImages.filter((_, index) => !imagesMarkedForRemoval.includes(index));
-                            }
-
-                            updateTaskInDatabase(name, steps, allImages);
-                            imagesMarkedForRemoval = []; // limpar após salvar
-                        });
+                if (showMoreBtn) {
+                    if (viewMode === 'compact' && filteredTasks.length > totalLoadedTasks) {
+                        showMoreBtn.style.display = 'block';
                     } else {
-                        // 🔥 Remover as marcadas para remoção (somente agora)
-                        if (imagesMarkedForRemoval.length > 0) {
-                            allImages = allImages.filter((_, index) => !imagesMarkedForRemoval.includes(index));
-                        }
-
-                        updateTaskInDatabase(name, steps, allImages);
-                        imagesMarkedForRemoval = []; // limpar após salvar
+                        showMoreBtn.style.display = 'none';
                     }
-                };
-            }
-
-            function updateTaskInDatabase(name, steps, imagesData) {
-                const transaction = db.transaction([STORE_NAME], 'readwrite');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.get(currentEditTaskId);
-
-                request.onsuccess = (event) => {
-                    const task = event.target.result;
-
-                    if (task) {
-                        // Preservar status de conclusão dos passos existentes
-                        const updatedSteps = steps.map((newStep, index) => {
-                            if (task.steps[index]) {
-                                return {
-                                    text: newStep.text,
-                                    completed: task.steps[index].completed
-                                };
-                            }
-                            return { ...newStep, completed: false }; // garantir que novos passos venham com completed: false
-                        });
-
-                        task.name = name;
-                        task.steps = updatedSteps;
-
-                        // Atualização das imagens
-                        if (imagesData === 'REMOVE_IMAGES') {
-                            task.images = [];
-                        } else if (Array.isArray(imagesData)) {
-                            task.images = imagesData;
-                        }
-                        // Se imagesData for null, manter imagens existentes
-
-                        // Recalcular status de conclusão da tarefa
-                        task.completed = task.steps.every(step => step.completed);
-
-                        const updateRequest = store.put(task);
-
-                        updateRequest.onsuccess = () => {
-                            showStatusMessage('Cronograma atualizado com sucesso!', 'success');
-                            closeModal(); // ou taskModal.style.display = 'none';
-                            loadTasks();
-
-                            // Limpar campos do modal de edição
-                            if (typeof editTaskImageInput !== 'undefined') editTaskImageInput.value = '';
-                            if (typeof editCapturedImagesData !== 'undefined') editCapturedImagesData = [];
-                            const preview = document.getElementById('editImagePreview');
-                            if (preview) preview.innerHTML = '';
-                            updateImagesCount('editImagesCount', 0);
-                            if (typeof isEditModalFirstAudioInput !== 'undefined') isEditModalFirstAudioInput = true;
-                        };
-
-                        updateRequest.onerror = (event) => {
-                            console.error('Erro ao atualizar cronograma:', event.target.error);
-                            showStatusMessage('Erro ao atualizar cronograma', 'error');
-                        };
-                    }
-                };
-
-                request.onerror = (event) => {
-                    console.error('Erro ao obter cronograma para edição:', event.target.error);
-                    showStatusMessage('Erro ao obter cronograma para edição', 'error');
-                };
-            }
-
-
-
-            function deleteTask(taskId) {
-                if (confirm('Tem certeza que deseja excluir este cronograma?')) {
-                    const transaction = db.transaction([STORE_NAME], 'readwrite');
-                    const store = transaction.objectStore(STORE_NAME);
-                    const request = store.delete(taskId);
-
-
-                    request.onsuccess = () => {
-                        loadTasks();
-                        showStatusMessage('Cronograma excluído com sucesso!');
-                    };
-
-
-                    request.onerror = (event) => {
-                        console.error('Erro ao excluir o cronograma:', event.target.error);
-                        showStatusMessage('Erro ao excluir o cronograma', 'error');
-                    };
                 }
             }
 
-
-            function exportTasks() {
-                const transaction = db.transaction([STORE_NAME], 'readonly');
-                const store = transaction.objectStore(STORE_NAME);
-                const request = store.getAll();
-
-
-                request.onsuccess = (event) => {
-                    const tasks = event.target.result;
-
-
-                    if (tasks.length === 0) {
-                        showStatusMessage('Não há cronogramas para exportar', 'error');
-                        return;
-                    }
-
-
-                    const dataStr = JSON.stringify(tasks, null, 2);
-                    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-
-
-                    const exportLink = document.createElement('a');
-                    exportLink.setAttribute('href', dataUri);
-                    exportLink.setAttribute('download', `cronogramas_${new Date().toISOString().slice(0, 10)}.json`);
-                    document.body.appendChild(exportLink);
-
-
-                    exportLink.click();
-                    document.body.removeChild(exportLink);
-
-
-                    showStatusMessage('Cronogramas exportados com sucesso!');
-                };
-
-
-                request.onerror = (event) => {
-                    console.error('Erro ao exportar cronogramas:', event.target.error);
-                    showStatusMessage('Erro ao exportar cronogramas', 'error');
-                };
-            }
-
-
-            function importTasks(event) {
-                const file = event.target.files[0];
-
-
-                if (!file) return;
-
-
-                const reader = new FileReader();
-
-
-                reader.onload = (e) => {
-                    try {
-                        const tasks = JSON.parse(e.target.result);
-
-
-                        if (!Array.isArray(tasks)) throw new Error('Formato inválido');
-
-
-                        if (confirm('Deseja substituir todos os cronogramas existentes?\n\n• OK = Substituir tudo\n• Cancelar = Mesclar com os existentes')) {
-                            const clearTransaction = db.transaction([STORE_NAME], 'readwrite');
-                            const clearStore = clearTransaction.objectStore(STORE_NAME);
-                            const clearRequest = clearStore.clear();
-
-
-                            clearRequest.onsuccess = () => {
-                                addImportedTasks(tasks, 'substituídos');
-                            };
-
-
-                            clearRequest.onerror = (error) => {
-                                console.error('Erro ao limpar cronogramas existentes:', error);
-                                showStatusMessage('Erro ao substituir cronogramas', 'error');
-                                event.target.value = '';
-                            };
-                        } else {
-                            // MESCLAR COM VERIFICAÇÃO DE DUPLICATAS
-                            const transaction = db.transaction([STORE_NAME], 'readonly');
-                            const store = transaction.objectStore(STORE_NAME);
-                            const getAllRequest = store.getAll();
-
-
-                            getAllRequest.onsuccess = () => {
-                                const existingTasks = getAllRequest.result;
-                                const existingNames = new Set(existingTasks.map(t => t.name.trim().toLowerCase()));
-
-
-                                // Filtrar apenas tarefas com nomes únicos
-                                const uniqueTasks = tasks.filter(t => !existingNames.has(t.name.trim().toLowerCase()));
-
-
-                                addImportedTasks(uniqueTasks, 'mesclados');
-                            };
-
-
-                            getAllRequest.onerror = (event) => {
-                                console.error('Erro ao buscar tarefas existentes para mesclar:', event.target.error);
-                                showStatusMessage('Erro ao verificar duplicatas', 'error');
-                                event.target.value = '';
-                            };
-                        }
-
-
-                    } catch (error) {
-                        console.error('Erro ao processar o arquivo JSON:', error);
-                        showStatusMessage('Erro ao processar o arquivo. Certifique-se de que é um arquivo JSON válido', 'error');
-                        event.target.value = '';
-                    }
-                };
-
-
-                reader.onerror = () => {
-                    console.error('Erro ao ler o arquivo');
-                    showStatusMessage('Erro ao ler o arquivo', 'error');
-                    event.target.value = '';
-                };
-
-
-                reader.readAsText(file);
-
-
-                function addImportedTasks(tasks, operation) {
-                    const transaction = db.transaction([STORE_NAME], 'readwrite');
-                    const store = transaction.objectStore(STORE_NAME);
-
-
-                    let importedCount = 0;
-                    let promises = [];
-
-
-                    tasks.forEach(task => {
-                        const cleanTask = { ...task };
-                        delete cleanTask.id;
-
-
-                        const promise = new Promise((resolve) => {
-                            const addRequest = store.add(cleanTask);
-
-
-                            addRequest.onsuccess = () => {
-                                importedCount++;
-                                resolve();
-                            };
-
-
-                            addRequest.onerror = () => {
-                                resolve(); // Ignorar falhas individuais
-                            };
-                        });
-
-
-                        promises.push(promise);
-                    });
-
-
-                    Promise.all(promises).then(() => {
-                        loadTasks();
-                        showStatusMessage(`${importedCount} cronograma(s) ${operation} com sucesso!`);
-                        event.target.value = '';
-                    });
-                }
-            }
-
-
-
-
-            function showStatusMessage(message, type = 'success') {
-                statusMessage.textContent = message;
-                statusMessage.className = 'status-message';
-
-
-                if (type === 'error') {
-                    statusMessage.style.backgroundColor = '#f8d7da';
-                    statusMessage.style.color = '#721c24';
-                } else {
-                    statusMessage.style.backgroundColor = '#d4edda';
-                    statusMessage.style.color = '#155724';
-                }
-
-
-                // Mostrar a mensagem
-                setTimeout(() => {
-                    statusMessage.classList.add('show');
-                }, 10);
-
-
-                // Esconder após alguns segundos
-                setTimeout(() => {
-                    statusMessage.classList.remove('show');
-                }, 3000);
-            }
-
-            // Fecha o modal se clicar fora da área do conteúdo
-            function setupModalCloseOnOutsideClick() {
-                taskModal.addEventListener('click', (e) => {
-                    // Se o clique foi diretamente no fundo do modal (não no conteúdo)
-                    if (e.target === taskModal) {
-                        closeModal();
-                    }
-                });
-            }
-
-
-            // Inicializar a aplicação
-            document.addEventListener('DOMContentLoaded', () => {
-                // Adicione estas linhas no DOMContentLoaded
-                document.getElementById('taskImage').addEventListener('change', handleImageUpload);
-                // Limpar o input após processar
-                document.getElementById('taskImage').value = '';
-                document.getElementById('cameraBtn').addEventListener('click', takePhoto);
-                document.getElementById('galleryBtn').addEventListener('click', () => {
-                    document.getElementById('taskImage').click();
-                });
-                document.getElementById('editTaskImage').addEventListener('change', handleEditImageUpload);
-                document.getElementById('editCameraBtn').addEventListener('click', takePhotoEdit);
-                document.getElementById('editGalleryBtn').addEventListener('click', () => {
-                    document.getElementById('editTaskImage').click();
-                });
-                console.log('Aplicação inicializada');
-                // Limpeza quando sair da página
-                window.addEventListener('beforeunload', stopAudioSequence);
-                window.addEventListener('pagehide', stopAudioSequence);
-
-                // Verificar suporte à síntese de voz
-                if (!checkSpeechSynthesisSupport()) {
-                    console.warn('Botões de leitura podem não funcionar corretamente');
-                }
-
-
-                // Definir tamanho de página padrão para 2 itens no modo compacto
-                if (viewMode === 'compact') {
-                    pageSizeSelect.value = '2';
-                    pageSize = 2;
-                }
-
-
-                // Verificar inicialmente o modo de visualização
-                viewMode = viewModeSelect.value;
-
-
-                // Configuração inicial do botão "Mostrar Mais"
-                updateShowMoreButton();
-                // Inicializar reconhecimento de voz
-                initSpeechRecognition();
-
-                setupModalCloseOnOutsideClick();
-            });
-
-            //funçao para pesquisa rapida
-            const voiceSearchBtn = document.getElementById('voiceSearchBtn');
-
-            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                const recognition = new SpeechRecognition();
-                recognition.lang = 'pt-BR'; // idioma português do Brasil
-                recognition.interimResults = false;
-                recognition.maxAlternatives = 1;
-
-                voiceSearchBtn.addEventListener('click', () => {
-                    recognition.start();
-                    document.getElementById('statusMessage').innerText = 'Ouvindo...';
-                });
-
-                recognition.addEventListener('result', (event) => {
-                    const transcript = event.results[0][0].transcript;
-                    searchInput.value = transcript;
-                    searchInput.dispatchEvent(new Event('input')); // simula digitação
-                    document.getElementById('statusMessage').innerText = `Você disse: "${transcript}"`;
-                });
-
-                recognition.addEventListener('end', () => {
-                    document.getElementById('statusMessage').innerText = ''; // limpa mensagem após ouvir
-                });
-
-                recognition.addEventListener('error', (e) => {
-                    document.getElementById('statusMessage').innerText = 'Erro ao reconhecer voz. Tente novamente.';
-                });
-            } else {
-                voiceSearchBtn.disabled = true;
-                voiceSearchBtn.title = 'Seu navegador não suporta pesquisa por voz.';
-            }
-
-            // Parar leitura quando sair da página
-            window.addEventListener('beforeunload', () => {
-                if (isReading) {
-                    stopReading();
-                }
-            });
-            function readAndCheckNextStep(taskId) {
-                if (!checkSpeechSynthesisSupport()) return;
-
-                const taskElement = document
-                    .querySelector(`[data-taskid="${taskId}"]`)
-                    ?.closest('.task-item');
-
-                if (!taskElement) return;
-
-                const taskTitle = taskElement.querySelector('.task-name')?.textContent || '';
-                const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
-
-                // passos ainda não concluídos
-                const uncheckedSteps = Array.from(checkboxes).filter(cb => !cb.checked);
-
-                if (uncheckedSteps.length === 0) {
-                    alert('Todos os passos já foram concluídos!');
-                    return;
-                }
-
-                // 👉 STEP ATUAL (o que VAI ser lido)
-                const currentStepCheckbox = uncheckedSteps[0];
-                const currentStepElement = currentStepCheckbox.closest('.task-step');
-
-                const stepText = currentStepElement
-                    .querySelector('.step-content')?.textContent || '';
-
-                const isFirstStep = uncheckedSteps.length === checkboxes.length;
-                const fullText = isFirstStep ? `${taskTitle}. ${stepText}` : stepText;
-
-                // 🔥 FOCO ANTES DE LER
-                focusPendingStep(taskElement);
-
-                const utterance = new SpeechSynthesisUtterance(fullText);
-
-                utterance.onend = () => {
-                    // marca como concluído
-                    currentStepCheckbox.checked = true;
-                    currentStepCheckbox.dispatchEvent(new Event('change'));
-
-                    // 🔥 FOCO NO PRÓXIMO STEP (após marcar)
-                    setTimeout(() => {
-                        focusPendingStep(taskElement);
-                    }, 100);
-                };
-
-                speechSynthesis.cancel();
-                speechSynthesis.speak(utterance);
-            }
-
-
-            function resetTaskSteps(taskId) {
-                const taskElement = document.querySelector(`[data-taskid="${taskId}"]`).closest('.task-item');
-                if (!taskElement) return;
-
-                const checkboxes = taskElement.querySelectorAll('.task-step-checkbox');
-
-                checkboxes.forEach(cb => {
-                    cb.checked = false;
-                    cb.dispatchEvent(new Event('change')); // caso tenha lógica atrelada
-                });
-            }
-            function renderTasksWithPagination() {
-                const startIndex = (currentPage - 1) * pageSize;
-                const endIndex = startIndex + pageSize;
-                const tasksToShow = filteredTasks.slice(startIndex, endIndex);
-
-                renderTasks(tasksToShow);
-                updatePaginationControls();
-            }
-
-            function updatePaginationControls() {
-                const totalPages = Math.ceil(filteredTasks.length / pageSize);
-
-                // Atualizar controles de paginação no DOM
-                const paginationElement = document.getElementById('pagination-controls');
-                if (paginationElement) {
-                    paginationElement.innerHTML = `
-            <button onclick="goToPage(1)" ${currentPage === 1 ? 'disabled' : ''}>Primeira</button>
-            <button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Anterior</button>
-            <span>Página ${currentPage} de ${totalPages}</span>
-            <button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Próxima</button>
-            <button onclick="goToPage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Última</button>
-        `;
-                }
-            }
-
-            function goToPage(page) {
-                const totalPages = Math.ceil(filteredTasks.length / pageSize);
-                if (page >= 1 && page <= totalPages) {
-                    currentPage = page;
-                    renderTasksWithPagination();
-                }
-            }
-            // Função para parar toda a sequência de áudio
-            function stopAudioSequence() {
-                speechSynthesis.cancel();
-                if (sequenceTimeout) {
-                    clearTimeout(sequenceTimeout);
-                    sequenceTimeout = null;
-                }
-                isPlayingSequence = false;
-                currentAudioQueue = [];
-                currentAudioIndex = 0;
-
-                if (currentTaskId) {
-                    updateReadButton(currentTaskId, false);
-                }
-
-                currentTaskId = null;
-                currentUtterance = null;
-                isPaused = false;
-            }
-            // Função para reproduzir próximo item da fila
-            function playNextInQueue() {
-                if (currentAudioIndex >= currentAudioQueue.length) {
-                    // Terminou a sequência
-                    stopAudioSequence();
-                    return;
-                }
-
-                const currentItem = currentAudioQueue[currentAudioIndex];
-
-                if (currentItem.type === 'pause') {
-                    // É uma pausa - usar setTimeout
-                    sequenceTimeout = setTimeout(() => {
-                        currentAudioIndex++;
-                        playNextInQueue();
-                    }, currentItem.duration);
-                } else {
-                    // É texto para falar
-                    currentUtterance = new SpeechSynthesisUtterance(currentItem.text);
-
-                    // Configurações otimizadas
-                    currentUtterance.rate = 0.9;
-                    currentUtterance.pitch = 1;
-                    currentUtterance.volume = 1;
-
-                    currentUtterance.onend = () => {
-                        currentAudioIndex++;
-                        playNextInQueue();
-                    };
-
-                    currentUtterance.onerror = () => {
-                        stopAudioSequence();
-                    };
-
-                    speechSynthesis.speak(currentUtterance);
-                }
-            }
-
-            // Função para remover imagem atual
-            function removeCurrentImage() {
-                if (confirm('Tem certeza que deseja remover a imagem atual?')) {
-                    // Limpar preview
-                    currentImagePreview.innerHTML = '<p>Nenhuma imagem definida</p>';
-
-                    // Limpar input de arquivo
-                    editTaskImageInput.value = '';
-
-                    // Marcar que a imagem deve ser removida
-                    window.removeImageFlag = true;
-
-                    showStatusMessage('Imagem marcada para remoção. Clique em "Salvar" para confirmar.', 'success');
-                }
-            }
-
-            // Função para criar a fila de áudio com pausas
-            function createAudioQueue(task) {
-                const queue = [];
-
-                // Adicionar título
-                queue.push({ type: 'speech', text: task.name });
-
-                // Adicionar pausa após título
-                queue.push({ type: 'pause', duration: PAUSE_AFTER_TITLE });
-
-                // Adicionar cada step com pausa
-                task.steps.forEach((step, index) => {
-                    queue.push({ type: 'speech', text: step.text });
-
-                    // Adicionar pausa entre steps (exceto no último)
-                    if (index < task.steps.length - 1) {
-                        queue.push({ type: 'pause', duration: PAUSE_BETWEEN_STEPS });
-                    }
-                });
-
-                return queue;
-            }
-
-            const toggleBtn = document.getElementById('toggleContainerBtn');
-            const container = document.querySelector('.container');
-
-            // Lógica para esconder a guia
-            toggleBtn.addEventListener('click', () => {
-                container.style.display = 'none';
-                toggleBtn.style.display = 'none'; // Oculta o botão após esconder a guia
-                if (resetBtn) {
-                    resetBtn.style.display = 'none';
-                }
-            });
-
-            // Garante que o container continue oculto ao recarregar a página
-            window.addEventListener('DOMContentLoaded', () => {
-                container.style.display = 'none';
-                toggleBtn.textContent = 'Mostrar Guia';
-            });
-
-            // Opcional: Mostrar configurações no console
-            console.log('Dispositivo detectado:', isMobileDevice() ? 'Mobile' : 'Desktop');
-            console.log('Pausa após título:', PAUSE_AFTER_TITLE + 'ms');
-            console.log('Pausa entre steps:', PAUSE_BETWEEN_STEPS + 'ms');
-
-            //funçoes para captura camera
-            // Função para verificar suporte à câmera
+            // ==================== FUNÇÕES DE CÂMERA E IMAGENS ====================
             function checkCameraSupport() {
                 return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
             }
 
-            // Função para tirar foto (tela principal)
             async function takePhoto() {
                 if (!checkCameraSupport()) {
                     alert('Câmera não suportada neste navegador');
@@ -3920,7 +3176,7 @@
 
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment' } // Câmera traseira por padrão
+                        video: { facingMode: 'environment' }
                     });
 
                     showCameraModal(stream, false);
@@ -3930,7 +3186,6 @@
                 }
             }
 
-            // Função para tirar foto (modal de edição)
             async function takePhotoEdit() {
                 if (!checkCameraSupport()) {
                     alert('Câmera não suportada neste navegador');
@@ -3949,11 +3204,9 @@
                 }
             }
 
-            // Função para mostrar modal da câmera
             function showCameraModal(stream, isEditMode) {
                 currentStream = stream;
 
-                // Criar modal da câmera
                 const cameraModal = document.createElement('div');
                 cameraModal.id = 'cameraModal';
                 cameraModal.style.cssText = `
@@ -3990,7 +3243,6 @@
                 const video = document.getElementById('cameraVideo');
                 video.srcObject = stream;
 
-                // Event listeners do modal da câmera
                 document.getElementById('captureBtn').addEventListener('click', () => {
                     captureImage(video, isEditMode);
                     closeCameraModal();
@@ -4003,7 +3255,6 @@
                 document.getElementById('closeCameraBtn').addEventListener('click', closeCameraModal);
             }
 
-            // Função para capturar imagem
             function captureImage(video, isEditMode) {
                 const canvas = document.createElement('canvas');
                 canvas.width = video.videoWidth;
@@ -4025,7 +3276,6 @@
                 }
             }
 
-            // Função para mostrar múltiplas imagens
             function showMultipleImagePreview(imagesArray, containerId) {
                 const container = document.getElementById(containerId);
 
@@ -4045,23 +3295,7 @@
                      data-src="${imageData}"
                      style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
                 <button type="button" onclick="removeImageFromArray(${index}, '${containerId}')"
-                        style="
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    background: #ff000000;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-">❌</button>
+                        style="position: absolute; top: -2px; right: -2px; background: #ff000000; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">❌</button>
             </div>
         `;
                 });
@@ -4069,24 +3303,22 @@
                 html += '</div>';
                 container.innerHTML = html;
 
-                // Adicionar event listeners após inserir o HTML
                 setTimeout(() => {
                     const previewImages = container.querySelectorAll('.preview-image');
+                    const imageModal = document.getElementById('imageModal');
+                    const modalImage = document.getElementById('modalImage');
+
                     previewImages.forEach(img => {
                         img.addEventListener('click', () => {
-                            const modal = document.getElementById('imageModal');
-                            const modalImg = document.getElementById('modalImage');
-
-                            if (modal && modalImg) {
-                                modalImg.src = img.dataset.src;
-                                modal.style.display = 'block';
+                            if (imageModal && modalImage) {
+                                modalImage.src = img.dataset.src;
+                                imageModal.style.display = 'block';
                             }
                         });
                     });
                 }, 0);
             }
 
-            // Função para remover imagem do array
             function removeImageFromArray(index, containerId) {
                 if (containerId === 'editImagePreview') {
                     editCapturedImagesData.splice(index, 1);
@@ -4099,7 +3331,6 @@
                 }
             }
 
-            // Função para atualizar contador de imagens
             function updateImagesCount(counterId, count) {
                 const counter = document.getElementById(counterId);
                 if (counter) {
@@ -4107,31 +3338,6 @@
                 }
             }
 
-
-            // Função para mostrar preview da imagem
-            function showImagePreview(imageData, containerId) {
-                const container = document.getElementById(containerId);
-                container.innerHTML = `
-        <div class="captured-image">
-            <img src="${imageData}" alt="Foto capturada">
-            <button class="remove-image-btn" onclick="removeImage('${containerId}')">×</button>
-        </div>
-    `;
-            }
-
-            // Função para remover imagem capturada
-            function removeImage(containerId) {
-                const container = document.getElementById(containerId);
-                container.innerHTML = '';
-
-                if (containerId === 'imagePreview') {
-                    capturedImageData = null;
-                } else {
-                    editCapturedImageData = null;
-                }
-            }
-
-            // Função para fechar modal da câmera
             function closeCameraModal() {
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
@@ -4144,15 +3350,12 @@
                 }
             }
 
-            // Função para trocar câmera
-            // Função para trocar câmera
             async function switchCamera(isEditMode) {
                 if (currentStream) {
                     currentStream.getTracks().forEach(track => track.stop());
                 }
 
                 try {
-                    // Alternar entre câmeras
                     currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
 
                     const stream = await navigator.mediaDevices.getUserMedia({
@@ -4163,7 +3366,6 @@
                     video.srcObject = stream;
                     currentStream = stream;
 
-                    // Atualizar texto do botão
                     const switchBtn = document.getElementById('switchCameraBtn');
                     switchBtn.textContent = currentFacingMode === 'environment' ? '🤳 Câmera Frontal' : '📷 Câmera Traseira';
 
@@ -4172,7 +3374,6 @@
                 }
             }
 
-            // Função para processar imagens da galeria (modo criação)
             function handleImageUpload(event) {
                 const files = event.target.files;
 
@@ -4186,11 +3387,9 @@
                     reader.readAsDataURL(file);
                 });
 
-                // Limpar o input para permitir selecionar a mesma imagem novamente
                 event.target.value = '';
             }
 
-            // Função para processar imagens da galeria (modo edição)
             function handleEditImageUpload(event) {
                 const files = event.target.files;
 
@@ -4204,88 +3403,377 @@
                     reader.readAsDataURL(file);
                 });
 
-                // Limpar o input para permitir selecionar a mesma imagem novamente
                 event.target.value = '';
             }
 
-            const textarea = document.getElementById('editTaskSteps');
-            const handle = document.getElementById('resizeHandle');
+            // ==================== FUNÇÕES AUXILIARES ====================
+            function showStatusMessage(message, type = 'success') {
+                const statusMessage = document.getElementById('statusMessage');
+                if (!statusMessage) return;
 
-            let startY = 0;
-            let startHeight = 0;
+                statusMessage.textContent = message;
+                statusMessage.className = 'status-message';
 
-            handle.addEventListener('touchstart', e => {
-                e.preventDefault(); // bloqueia scroll
-                startY = e.touches[0].clientY;
-                startHeight = textarea.offsetHeight;
-            }, { passive: false });
-
-            handle.addEventListener('touchmove', e => {
-                e.preventDefault(); // 🔥 ISSO impede pull-to-refresh
-                const delta = e.touches[0].clientY - startY;
-                textarea.style.height = Math.max(60, startHeight + delta) + 'px';
-            }, { passive: false });
-
-            let startX = 0;
-
-            modalImage.addEventListener('touchstart', e => {
-                startX = e.touches[0].clientX;
-            });
-
-            modalImage.addEventListener('touchend', e => {
-                const endX = e.changedTouches[0].clientX;
-                const diff = startX - endX;
-
-                if (Math.abs(diff) > 50) {
-                    if (diff > 0) {
-                        // swipe esquerda → próxima imagem
-                        nextImage();
-                    } else {
-                        // swipe direita → imagem anterior
-                        prevImage();
-                    }
+                if (type === 'error') {
+                    statusMessage.style.backgroundColor = '#f8d7da';
+                    statusMessage.style.color = '#721c24';
+                } else {
+                    statusMessage.style.backgroundColor = '#d4edda';
+                    statusMessage.style.color = '#155724';
                 }
-            });
 
+                setTimeout(() => {
+                    statusMessage.classList.add('show');
+                }, 10);
+
+                setTimeout(() => {
+                    statusMessage.classList.remove('show');
+                }, 3000);
+            }
+
+            function setupModalCloseOnOutsideClick() {
+                const taskModal = document.getElementById('taskModal');
+                if (taskModal) {
+                    taskModal.addEventListener('click', (e) => {
+                        if (e.target === taskModal) {
+                            closeModal();
+                        }
+                    });
+                }
+            }
+
+            // ==================== NAVEGAÇÃO DE IMAGENS NO MODAL ====================
             function nextImage() {
-                currentImageIndex =
-                    (currentImageIndex + 1) % modalImages.length;
-                modalImage.src = modalImages[currentImageIndex];
+                currentImageIndex = (currentImageIndex + 1) % modalImages.length;
+                const modalImage = document.getElementById('modalImage');
+                if (modalImage) {
+                    modalImage.src = modalImages[currentImageIndex];
+                }
             }
 
             function prevImage() {
-                currentImageIndex =
-                    (currentImageIndex - 1 + modalImages.length) % modalImages.length;
-                modalImage.src = modalImages[currentImageIndex];
+                currentImageIndex = (currentImageIndex - 1 + modalImages.length) % modalImages.length;
+                const modalImage = document.getElementById('modalImage');
+                if (modalImage) {
+                    modalImage.src = modalImages[currentImageIndex];
+                }
             }
 
-            function focusPendingStep(taskElement) {
-                const stepsContainer = taskElement.querySelector('.task-steps');
-                if (!stepsContainer) return;
+            // ==================== DOM CONTENT LOADED ====================
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('Aplicação inicializada');
 
-                const steps = stepsContainer.querySelectorAll('.task-step');
+                // Event listeners - Imagens
+                const taskImageInput = document.getElementById('taskImage');
+                const cameraBtn = document.getElementById('cameraBtn');
+                const galleryBtn = document.getElementById('galleryBtn');
+                const editTaskImageInput = document.getElementById('editTaskImage');
+                const editCameraBtn = document.getElementById('editCameraBtn');
+                const editGalleryBtn = document.getElementById('editGalleryBtn');
 
-                // Achar primeiro passo NÃO marcado
-                const stepToFocus = Array.from(steps).find(step => {
-                    const checkbox = step.querySelector('.task-step-checkbox');
-                    return checkbox && !checkbox.checked;
+                if (taskImageInput) taskImageInput.addEventListener('change', handleImageUpload);
+                if (cameraBtn) cameraBtn.addEventListener('click', takePhoto);
+                if (galleryBtn) galleryBtn.addEventListener('click', () => taskImageInput.click());
+                if (editTaskImageInput) editTaskImageInput.addEventListener('change', handleEditImageUpload);
+                if (editCameraBtn) editCameraBtn.addEventListener('click', takePhotoEdit);
+                if (editGalleryBtn) editGalleryBtn.addEventListener('click', () => editTaskImageInput.click());
+
+                // Event listeners - Busca
+                const searchInput = document.getElementById('searchInput');
+                const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+                if (searchInput) {
+                    searchInput.addEventListener('input', function () {
+                        const searchValue = this.value.trim();
+                        if (clearSearchBtn) clearSearchBtn.style.display = searchValue ? 'block' : 'none';
+                        currentPage = 1;
+                        totalLoadedTasks = viewMode === 'compact' ? 2 : filteredTasks.length;
+                        loadTasks();
+                    });
+                }
+
+                if (clearSearchBtn) {
+                    clearSearchBtn.addEventListener('click', function () {
+                        if (searchInput) searchInput.value = '';
+                        clearSearchBtn.style.display = 'none';
+                        currentPage = 1;
+                        totalLoadedTasks = viewMode === 'compact' ? 2 : filteredTasks.length;
+                        loadTasks();
+                    });
+                }
+
+                // Event listeners - Paginação
+                const prevPageBtn = document.getElementById('prevPageBtn');
+                const nextPageBtn = document.getElementById('nextPageBtn');
+                const pageSizeSelect = document.getElementById('pageSizeSelect');
+                const viewModeSelect = document.getElementById('viewModeSelect');
+                const showMoreBtn = document.getElementById('showMoreBtn');
+
+                if (prevPageBtn) {
+                    prevPageBtn.addEventListener('click', function () {
+                        if (currentPage > 1) {
+                            currentPage--;
+                            loadTasks();
+                        }
+                    });
+                }
+
+                if (nextPageBtn) {
+                    nextPageBtn.addEventListener('click', function () {
+                        const totalPages = Math.ceil(filteredTasks.length / pageSize);
+                        if (currentPage < totalPages) {
+                            currentPage++;
+                            loadTasks();
+                        }
+                    });
+                }
+
+                if (pageSizeSelect) {
+                    pageSizeSelect.addEventListener('change', function () {
+                        pageSize = parseInt(this.value);
+                        currentPage = 1;
+                        loadTasks();
+                    });
+                }
+
+                if (viewModeSelect) {
+                    viewModeSelect.addEventListener('change', function () {
+                        viewMode = this.value;
+                        currentPage = 1;
+                        totalLoadedTasks = viewMode === 'compact' ? 2 : filteredTasks.length;
+                        const paginationControls = document.getElementById('paginationControls');
+                        if (paginationControls) {
+                            paginationControls.style.display = viewMode === 'all' ? 'flex' : 'none';
+                        }
+                        loadTasks();
+                    });
+                }
+
+                if (showMoreBtn) {
+                    showMoreBtn.addEventListener('click', function () {
+                        totalLoadedTasks += 2;
+                        if (totalLoadedTasks >= filteredTasks.length) {
+                            totalLoadedTasks = filteredTasks.length;
+                            this.style.display = 'none';
+                        }
+                        renderTasks(filteredTasks.slice(0, totalLoadedTasks));
+                    });
+                }
+
+                // Event listeners - Tarefas
+                const createTaskBtn = document.getElementById('createTaskBtn');
+                const resetBtn = document.getElementById('resetGuideBtn');
+                const exportBtn = document.getElementById('exportBtn');
+                const importInput = document.getElementById('importInput');
+                const importBtn = document.getElementById('importBtn');
+                const modalCloseBtn = document.querySelector('.modal-close');
+                const saveTaskBtn = document.getElementById('saveTaskBtn');
+                const audioBtn = document.getElementById('audioBtn');
+                const editAudioBtn = document.getElementById('editAudioBtn');
+
+                if (createTaskBtn) {
+                    createTaskBtn.addEventListener('click', () => {
+                        const container = document.querySelector('.container');
+                        const toggleBtn = document.getElementById('toggleContainerBtn');
+
+                        if (resetBtn) resetBtn.style.display = 'inline-block';
+
+                        if (container && container.style.display === 'none') {
+                            container.style.display = 'block';
+                            if (toggleBtn) {
+                                toggleBtn.style.display = 'inline-block';
+                                toggleBtn.textContent = 'Ocultar Guia';
+                            }
+                            return;
+                        }
+                        createTask();
+                    });
+                }
+
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', () => {
+                        const taskNameInput = document.getElementById('taskName');
+                        const taskStepsInput = document.getElementById('taskSteps');
+
+                        if (taskNameInput) taskNameInput.value = '';
+                        if (taskStepsInput) taskStepsInput.value = '';
+                        if (taskImageInput) taskImageInput.value = '';
+                        isFirstAudioInput = true;
+                    });
+                }
+
+                if (exportBtn) exportBtn.addEventListener('click', exportTasks);
+                if (importInput) importInput.addEventListener('change', importTasks);
+                if (importBtn) importBtn.addEventListener('click', () => importInput.click());
+                if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
+                if (saveTaskBtn) saveTaskBtn.addEventListener('click', saveTaskChanges);
+                if (audioBtn) audioBtn.addEventListener('click', toggleAudioRecording);
+                if (editAudioBtn) editAudioBtn.addEventListener('click', toggleEditModalAudioRecording);
+
+                // Event listeners - Pesquisa por voz
+                const voiceSearchBtn = document.getElementById('voiceSearchBtn');
+                const statusMessage = document.getElementById('statusMessage');
+
+                if (voiceSearchBtn && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    const voiceRecognition = new SpeechRecognition();
+                    voiceRecognition.lang = 'pt-BR';
+                    voiceRecognition.interimResults = false;
+                    voiceRecognition.maxAlternatives = 1;
+
+                    voiceSearchBtn.addEventListener('click', () => {
+                        voiceRecognition.start();
+                        if (statusMessage) statusMessage.innerText = 'Ouvindo...';
+                    });
+
+                    voiceRecognition.addEventListener('result', (event) => {
+                        const transcript = event.results[0][0].transcript;
+                        if (searchInput) searchInput.value = transcript;
+                        if (searchInput) searchInput.dispatchEvent(new Event('input'));
+                        if (statusMessage) statusMessage.innerText = `Você disse: "${transcript}"`;
+                    });
+
+                    voiceRecognition.addEventListener('end', () => {
+                        if (statusMessage) statusMessage.innerText = '';
+                    });
+
+                    voiceRecognition.addEventListener('error', (e) => {
+                        if (statusMessage) statusMessage.innerText = 'Erro ao reconhecer voz. Tente novamente.';
+                    });
+                } else if (voiceSearchBtn) {
+                    voiceSearchBtn.disabled = true;
+                    voiceSearchBtn.title = 'Seu navegador não suporta pesquisa por voz.';
+                }
+
+                // Event listeners - Toggle Container
+                const toggleBtn = document.getElementById('toggleContainerBtn');
+                const container = document.querySelector('.container');
+
+                if (toggleBtn && container) {
+                    toggleBtn.addEventListener('click', () => {
+                        container.style.display = 'none';
+                        toggleBtn.style.display = 'none';
+                        if (resetBtn) resetBtn.style.display = 'none';
+                    });
+                }
+
+                // Event listeners - Modal de imagem
+                const imageModal = document.getElementById('imageModal');
+                const closeModalBtn = imageModal ? imageModal.querySelector('.close-modal') : null;
+                const prevArrow = imageModal ? imageModal.querySelector('.nav-arrow.left') : null;
+                const nextArrow = imageModal ? imageModal.querySelector('.nav-arrow.right') : null;
+                const modalImage = document.getElementById('modalImage');
+
+                if (closeModalBtn) {
+                    closeModalBtn.addEventListener('click', () => {
+                        if (imageModal) imageModal.style.display = 'none';
+                    });
+                }
+
+                if (imageModal) {
+                    imageModal.addEventListener('click', (e) => {
+                        if (e.target === imageModal) {
+                            imageModal.style.display = 'none';
+                        }
+                    });
+                }
+
+                if (prevArrow) {
+                    prevArrow.addEventListener('click', e => {
+                        e.stopPropagation();
+                        prevImage();
+                    });
+                }
+
+                if (nextArrow) {
+                    nextArrow.addEventListener('click', e => {
+                        e.stopPropagation();
+                        nextImage();
+                    });
+                }
+
+                // Navegação por teclado
+                document.addEventListener('keydown', e => {
+                    if (!imageModal || imageModal.style.display !== 'block') return;
+
+                    if (e.key === 'ArrowRight') nextImage();
+                    if (e.key === 'ArrowLeft') prevImage();
+                    if (e.key === 'Escape') imageModal.style.display = 'none';
                 });
 
-                if (!stepToFocus) return;
+                // Navegação por swipe (mobile)
+                if (modalImage) {
+                    let startX = 0;
 
-                // Remove active antigo
-                steps.forEach(s => s.classList.remove('active'));
+                    modalImage.addEventListener('touchstart', e => {
+                        startX = e.touches[0].clientX;
+                    });
 
-                // Marca o atual
-                stepToFocus.classList.add('active');
+                    modalImage.addEventListener('touchend', e => {
+                        const endX = e.changedTouches[0].clientX;
+                        const diff = startX - endX;
 
-                // Scroll suave
-                stepToFocus.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                });
-            }
+                        if (Math.abs(diff) > 50) {
+                            if (diff > 0) {
+                                nextImage();
+                            } else {
+                                prevImage();
+                            }
+                        }
+                    });
+                }
 
+                // Resize handle para textarea (mobile)
+                const textarea = document.getElementById('editTaskSteps');
+                const handle = document.getElementById('resizeHandle');
+
+                if (textarea && handle) {
+                    let startY = 0;
+                    let startHeight = 0;
+
+                    handle.addEventListener('touchstart', e => {
+                        e.preventDefault();
+                        startY = e.touches[0].clientY;
+                        startHeight = textarea.offsetHeight;
+                    }, { passive: false });
+
+                    handle.addEventListener('touchmove', e => {
+                        e.preventDefault();
+                        const delta = e.touches[0].clientY - startY;
+                        textarea.style.height = Math.max(60, startHeight + delta) + 'px';
+                    }, { passive: false });
+                }
+
+                // Inicialização
+                if (container) container.style.display = 'none';
+                if (toggleBtn) toggleBtn.textContent = 'Mostrar Guia';
+
+                if (viewMode === 'compact' && pageSizeSelect) {
+                    pageSizeSelect.value = '2';
+                    pageSize = 2;
+                }
+
+                if (viewModeSelect) viewMode = viewModeSelect.value;
+
+                updateShowMoreButton();
+                initSpeechRecognition();
+                setupModalCloseOnOutsideClick();
+
+                if (!checkSpeechSynthesisSupport()) {
+                    console.warn('Botões de leitura podem não funcionar corretamente');
+                }
+
+                console.log('Dispositivo detectado:', isMobileDevice() ? 'Mobile' : 'Desktop');
+                console.log('Pausa após título:', PAUSE_AFTER_TITLE + 'ms');
+                console.log('Pausa entre steps:', PAUSE_BETWEEN_STEPS + 'ms');
+            });
+
+            // ==================== LIMPEZA AO SAIR ====================
+            window.addEventListener('beforeunload', () => {
+                stopAudioSequence();
+            });
+
+            window.addEventListener('pagehide', stopAudioSequence);
         </script>
 </body>
 
