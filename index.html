@@ -999,12 +999,26 @@
             display: none;
         }
 
-        #cuqui {
-            padding: 14px;
+        .cuqui {
+            margin: 10px 0px 10px 0px;
+            padding: 5px 10px 5px 10px;
         }
 
-        #cuqui0 {
+        .cuqui0 {
             margin-right: 7px;
+        }
+
+        .cuqui1 {
+            margin: 14px 2px 14px 2px;
+            padding: 0px;
+        }
+
+
+        /* destaque no task buscado */
+        .task-step.step-focus {
+            background: rgba(255, 215, 0, 0.25);
+            border-left: 4px solid gold;
+            transition: background 0.3s;
         }
 
         @media (max-width: 768px) {
@@ -1445,6 +1459,9 @@
             let imagesMarkedForRemoval = [];
             let modalImages = [];
             let currentImageIndex = 0;
+            //armazear steps e ocorrencias atuais
+            let currentSearchMatches = [];
+            let currentMatchIndex = 0;
 
 
 
@@ -2634,14 +2651,16 @@
                                 `).join('')}
                             </div>
                             <div class="task-local-search">
-                                <button class="step-voice-search-btn" id="cuqui" title="Pesquisar por voz">🎙️</button>
-                                <button class="clear-step-search-btn" id="cuqui" title="Limpar pesquisa">✖</button>
-                                    <input
-                                        type="text"
-                                        class="step-search-input" id="cuqui0"
-                                        placeholder="Pesquisar neste cronograma..."
-                                    />
-                                </div>
+    <button class="step-voice-search-btn cuqui" title="Pesquisar por voz">🎙️</button>
+    <button class="clear-step-search-btn cuqui" title="Limpar pesquisa">✖</button>
+    <button class="prev-match-btn cuqui1" title="Anterior">◀</button>
+    <button class="next-match-btn cuqui1" title="Próxima">▶</button>
+    <input
+        type="text"
+        class="step-search-input cuqui0"
+        placeholder="Pesquisar neste cronograma..."
+    />
+</div>
                             </div>
                             <div class="botoesExpandir">
                                 <button class="expand-btn ${isExpanded ? 'expanded' : ''}" data-taskid="${task.id}">
@@ -2685,7 +2704,7 @@
 
                     if (stepSearchInput) {
                         stepSearchInput.addEventListener('input', (e) => {
-                            filterStepsInsideTask(taskElement, e.target.value);
+                            focusStepBySearch(taskElement, e.target.value);
                         });
                     }
                     const voiceBtn = taskElement.querySelector('.step-voice-search-btn');
@@ -2706,6 +2725,27 @@
                             stepSearchInput.value = transcript;
                             stepSearchInput.dispatchEvent(new Event('input'));
                         };
+                    }
+                    // Botões de navegação entre matches
+                    const prevBtn = taskElement.querySelector('.prev-match-btn');
+                    const nextBtn = taskElement.querySelector('.next-match-btn');
+
+                    if (prevBtn) {
+                        prevBtn.addEventListener('click', () => {
+                            if (currentSearchMatches.length === 0) return;
+                            currentMatchIndex = (currentMatchIndex - 1 + currentSearchMatches.length) % currentSearchMatches.length;
+                            focusOnCurrentMatch(taskElement);
+                            updateSearchCounter(taskElement);
+                        });
+                    }
+
+                    if (nextBtn) {
+                        nextBtn.addEventListener('click', () => {
+                            if (currentSearchMatches.length === 0) return;
+                            currentMatchIndex = (currentMatchIndex + 1) % currentSearchMatches.length;
+                            focusOnCurrentMatch(taskElement);
+                            updateSearchCounter(taskElement);
+                        });
                     }
 
                     // Event listener para clique nas imagens (abrir modal)
@@ -2801,6 +2841,101 @@
                     expandBtn.addEventListener('click', (e) => toggleTaskExpansion(e, task.id));
                 });
             }
+            // funçao focu no step atual
+            function focusStepBySearch(taskElement, searchValue) {
+                const normalizeText = (text) => {
+                    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                };
+
+                if (!searchValue.trim()) {
+                    clearStepSearch(taskElement);
+                    return;
+                }
+
+                const steps = taskElement.querySelectorAll('.task-step');
+                const normalizedSearch = normalizeText(searchValue);
+
+                // Limpar destaques anteriores
+                steps.forEach(step => {
+                    step.classList.remove('step-focus');
+                    const content = step.querySelector('.step-content');
+                    if (content && content.dataset.original) {
+                        content.innerHTML = content.dataset.original;
+                    }
+                });
+
+                // Encontrar todas as ocorrências
+                currentSearchMatches = [];
+                steps.forEach((step, stepIndex) => {
+                    const content = step.querySelector('.step-content');
+                    if (!content) return;
+
+                    const originalText = content.textContent;
+                    const normalizedText = normalizeText(originalText);
+
+                    if (normalizedText.includes(normalizedSearch)) {
+                        // Guardar texto original
+                        if (!content.dataset.original) {
+                            content.dataset.original = originalText;
+                        }
+
+                        // Destacar palavras encontradas
+                        let highlightedText = originalText;
+                        const regex = new RegExp(`(${searchValue.split('').join('[àáâãäåèéêëìíîïòóôõöùúûü]*')})`, 'gi');
+                        highlightedText = highlightedText.replace(regex, '<mark>$1</mark>');
+
+                        content.innerHTML = highlightedText;
+                        currentSearchMatches.push(step);
+                    }
+                });
+
+                if (currentSearchMatches.length === 0) return;
+
+                // Resetar índice
+                currentMatchIndex = 0;
+
+                // Focar no primeiro match
+                focusOnCurrentMatch(taskElement);
+
+                // Atualizar contador
+                updateSearchCounter(taskElement);
+            }
+
+            function focusOnCurrentMatch(taskElement) {
+                if (currentSearchMatches.length === 0) return;
+
+                // Remover foco anterior
+                currentSearchMatches.forEach(step => step.classList.remove('step-focus'));
+
+                // Adicionar foco no atual
+                const currentStep = currentSearchMatches[currentMatchIndex];
+                currentStep.classList.add('step-focus');
+
+                // Scroll suave
+                currentStep.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
+
+            function updateSearchCounter(taskElement) {
+                const searchInput = taskElement.querySelector('.step-search-input');
+                if (!searchInput) return;
+
+                const existingCounter = taskElement.querySelector('.search-counter');
+                if (existingCounter) {
+                    existingCounter.remove();
+                }
+
+                if (currentSearchMatches.length > 0) {
+                    const counter = document.createElement('span');
+                    counter.className = 'search-counter';
+                    counter.textContent = `${currentMatchIndex + 1}/${currentSearchMatches.length}`;
+                    counter.style.cssText = ' margin-right: 5px; color: #666; font-size: 12px;';
+                    searchInput.parentElement.appendChild(counter);
+                }
+            }
+
 
             function filterStepsInsideTask(taskElement, searchValue) {
                 const steps = taskElement.querySelectorAll('.task-step');
@@ -2815,12 +2950,25 @@
             function clearStepSearch(taskElement) {
                 const input = taskElement.querySelector('.step-search-input');
                 const steps = taskElement.querySelectorAll('.task-step');
+                const counter = taskElement.querySelector('.search-counter');
 
                 if (input) input.value = '';
+                if (counter) counter.remove();
 
                 steps.forEach(step => {
+                    step.classList.remove('step-focus');
                     step.style.display = '';
+
+                    // Restaurar texto original
+                    const content = step.querySelector('.step-content');
+                    if (content && content.dataset.original) {
+                        content.innerHTML = content.dataset.original;
+                        delete content.dataset.original;
+                    }
                 });
+
+                currentSearchMatches = [];
+                currentMatchIndex = 0;
             }
 
 
@@ -4112,15 +4260,6 @@
                     behavior: 'smooth',
                     block: 'center'
                 });
-            }
-
-            function clearStepSearch(taskElement) {
-                const input = taskElement.querySelector('.step-search-input');
-                const steps = taskElement.querySelectorAll('.task-step');
-
-                if (input) input.value = '';
-
-                steps.forEach(step => step.style.display = '');
             }
 
         </script>
