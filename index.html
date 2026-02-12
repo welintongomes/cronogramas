@@ -1022,6 +1022,26 @@
             transition: background 0.3s;
         }
 
+        .searchvoice {
+            border-radius: 9px 9px 9px 34px;
+            margin: 9px 2px 9px 3px;
+            padding: 5px 22px 15px 22px;
+            background-color: rgb(111 66 193);
+        }
+
+        .ant {
+            margin: 12px 1px 12px 3px;
+            padding: 6px;
+            background-color: #6a69cb;
+        }
+
+        .prox {
+            border-radius: 17px 25px 30px 12px;
+            margin: 12px 0px 12px 0px;
+            padding: 6px;
+            background-color: #6a69cb;
+        }
+
         @media (max-width: 768px) {
             body {
                 padding: 15px;
@@ -2150,6 +2170,38 @@
 
                         editTaskNameInput.value = task.name;
                         editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
+                        // Adicionar busca no modal se não existir
+                        // Adicionar busca no modal se não existir
+                        if (!document.getElementById('editModalSearchContainer')) {
+                            const searchContainer = document.createElement('div');
+                            searchContainer.id = 'editModalSearchContainer';
+                            searchContainer.className = 'task-local-search';
+                            searchContainer.innerHTML = `
+        <button id="editModalSearchPrev" class="cuqui" title="Anterior">◀</button>
+        <button id="editModalSearchNext" class="cuqui" title="Próxima">▶</button>
+        <button id="editModalSearchClear" class="cuqui" title="Limpar">✖</button>
+        <input type="text" id="editModalSearch" class="cuqui0" placeholder="Pesquisar no texto..."/>
+        <span id="editModalSearchCounter" style="margin-left: 10px; color: #666; font-size: 12px;"></span>
+    `;
+                            editTaskStepsInput.parentElement.insertBefore(searchContainer, editTaskStepsInput);
+
+                            // Criar área de visualização (read-only)
+                            const previewDiv = document.createElement('div');
+                            previewDiv.id = 'editModalPreview';
+                            previewDiv.style.cssText = `
+        display: none;
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+        background: #f9f9f9;
+        margin-bottom: 10px;
+        white-space: pre-wrap;
+        font-family: monospace;
+        line-height: 1.6;
+    `;
+                            editTaskStepsInput.parentElement.insertBefore(previewDiv, editTaskStepsInput);
+                        }
                         currentEditTaskId = taskId;
 
                         if (task.images && task.images.length > 0) {
@@ -2235,7 +2287,47 @@
                         if (editAudioIcon) editAudioIcon.textContent = '🎤';
                         if (editAudioBtnText) editAudioBtnText.textContent = '';
                         hideEditAudioStatus();
+                        // Configurar busca do modal
+                        setTimeout(() => {
+                            const editModalSearch = document.getElementById('editModalSearch');
+                            const editModalSearchPrev = document.getElementById('editModalSearchPrev');
+                            const editModalSearchNext = document.getElementById('editModalSearchNext');
+                            const editModalSearchClear = document.getElementById('editModalSearchClear');
+                            const editTaskSteps = document.getElementById('editTaskSteps');
 
+                            if (editModalSearch) {
+                                const newInput = editModalSearch.cloneNode(true);
+                                editModalSearch.parentNode.replaceChild(newInput, editModalSearch);
+                                newInput.addEventListener('input', (e) => {
+                                    searchInTextarea(editTaskSteps, e.target.value, (text) => {
+                                        return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                                    });
+                                });
+                            }
+
+                            if (editModalSearchPrev) {
+                                const newBtn = editModalSearchPrev.cloneNode(true);
+                                editModalSearchPrev.parentNode.replaceChild(newBtn, editModalSearchPrev);
+                                newBtn.addEventListener('click', prevTextareaMatch);
+                            }
+
+                            if (editModalSearchNext) {
+                                const newBtn = editModalSearchNext.cloneNode(true);
+                                editModalSearchNext.parentNode.replaceChild(newBtn, editModalSearchNext);
+                                newBtn.addEventListener('click', nextTextareaMatch);
+                            }
+
+                            if (editModalSearchClear) {
+                                const newBtn = editModalSearchClear.cloneNode(true);
+                                editModalSearchClear.parentNode.replaceChild(newBtn, editModalSearchClear);
+                                newBtn.addEventListener('click', () => clearTextareaSearch(editTaskSteps));
+                            }
+                        }, 100);
+
+                        // Desabilitar quebra de linha
+                        editTaskStepsInput.setAttribute('wrap', 'off');
+                        editTaskStepsInput.style.whiteSpace = 'pre';
+                        editTaskStepsInput.style.overflowX = 'auto';
                         taskModal.style.display = 'flex';
                     }
                 };
@@ -2249,6 +2341,11 @@
             function closeModal() {
                 if (isEditModalRecording) {
                     stopEditModalRecording();
+                }
+                // Limpar busca do modal
+                const editTaskSteps = document.getElementById('editTaskSteps');
+                if (editTaskSteps) {
+                    clearTextareaSearch(editTaskSteps);
                 }
 
                 const taskModal = document.getElementById('taskModal');
@@ -2747,10 +2844,10 @@
                     `).join('')}
                 </div>
                 <div class="task-local-search">
-                    <button class="step-voice-search-btn cuqui" title="Pesquisar por voz">🎙️</button>
+                    <button class="step-voice-search-btn searchvoice" title="Pesquisar por voz">🎙️</button>
                     <button class="clear-step-search-btn cuqui" title="Limpar pesquisa">✖</button>
-                    <button class="prev-match-btn cuqui" title="Anterior">◀</button>
-                    <button class="next-match-btn cuqui" title="Próxima">▶</button>
+                    <button class="prev-match-btn ant" title="Anterior">◀</button>
+                    <button class="next-match-btn prox" title="Próxima">▶</button>
                     <input
                         type="text"
                         class="step-search-input cuqui0"
@@ -3028,21 +3125,53 @@
 
             // ==================== FUNÇÕES DE BUSCA LOCAL ====================
             function focusStepBySearch(taskElement, searchValue) {
+                // REUTILIZAR a função genérica
+                performSearch(searchValue, {
+                    container: taskElement,
+                    itemsSelector: '.task-step',
+                    contentSelector: '.step-content',
+                    matchesArray: 'currentSearchMatches',
+                    matchIndexVar: 'currentMatchIndex',
+                    onComplete: (taskElement) => {
+                        updateSearchCounter(taskElement);
+                    }
+                });
+            }
+
+            // ==================== FUNÇÃO GENÉRICA DE BUSCA (REUTILIZÁVEL) ====================
+            function performSearch(searchValue, config) {
                 const normalizeText = (text) => {
                     return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
                 };
 
+                const container = config.container;
+                const isTextarea = container.tagName === 'TEXTAREA';
+
                 if (!searchValue.trim()) {
-                    clearStepSearch(taskElement);
+                    if (isTextarea) {
+                        clearTextareaSearch(container);
+                    } else {
+                        clearStepSearch(container);
+                    }
                     return;
                 }
 
-                const steps = taskElement.querySelectorAll('.task-step');
+                if (isTextarea) {
+                    // BUSCA EM TEXTAREA (MODAL)
+                    searchInTextarea(container, searchValue, normalizeText);
+                } else {
+                    // BUSCA EM STEPS (TASKS)
+                    searchInSteps(container, searchValue, normalizeText, config);
+                }
+            }
+
+            function searchInSteps(taskElement, searchValue, normalizeText, config) {
+                const steps = taskElement.querySelectorAll(config.itemsSelector);
                 const normalizedSearch = normalizeText(searchValue);
 
                 steps.forEach(step => {
                     step.classList.remove('step-focus');
-                    const content = step.querySelector('.step-content');
+                    const content = step.querySelector(config.contentSelector);
                     if (content && content.dataset.original) {
                         content.innerHTML = content.dataset.original;
                     }
@@ -3050,7 +3179,7 @@
 
                 currentSearchMatches = [];
                 steps.forEach((step, stepIndex) => {
-                    const content = step.querySelector('.step-content');
+                    const content = step.querySelector(config.contentSelector);
                     if (!content) return;
 
                     const originalText = content.textContent;
@@ -3074,7 +3203,212 @@
 
                 currentMatchIndex = 0;
                 focusOnCurrentMatch(taskElement);
-                updateSearchCounter(taskElement);
+
+                if (config.onComplete) {
+                    config.onComplete(taskElement);
+                }
+            }
+
+            function searchInTextarea(textarea, searchValue, normalizeText) {
+                const previewDiv = document.getElementById('editModalPreview');
+
+                if (!searchValue.trim()) {
+                    clearTextareaSearch(textarea);
+                    return;
+                }
+
+                // Mostrar preview e ocultar textarea
+                textarea.style.display = 'none';
+                previewDiv.style.display = 'block';
+
+                const text = textarea.value;
+                const normalizedSearch = normalizeText(searchValue);
+                const normalizedText = normalizeText(text);
+
+                // Dividir em linhas
+                const lines = text.split('\n');
+                const matches = [];
+
+                lines.forEach((line, lineIndex) => {
+                    const normalizedLine = normalizeText(line);
+                    if (normalizedLine.includes(normalizedSearch)) {
+                        matches.push({ lineIndex, line });
+                    }
+                });
+
+                if (matches.length === 0) {
+                    previewDiv.innerHTML = '<p style="color: #999;">Nenhuma ocorrência encontrada</p>';
+                    updateTextareaCounter(0, 0);
+                    return;
+                }
+
+                // Salvar matches
+                window.textareaMatches = matches;
+                window.textareaMatchIndex = 0;
+
+                renderTextareaMatches(matches, searchValue, normalizeText);
+                updateTextareaCounter(1, matches.length);
+            }
+
+            function renderTextareaMatches(matches, searchValue, normalizeText) {
+                const previewDiv = document.getElementById('editModalPreview');
+                let html = '';
+
+                matches.forEach((match, index) => {
+                    const line = match.line;
+                    const normalizedLine = normalizeText(line);
+                    const normalizedSearch = normalizeText(searchValue);
+
+                    // Destacar a palavra encontrada
+                    let highlightedLine = line;
+                    const regex = new RegExp(`(${searchValue.split('').join('[àáâãäåèéêëìíîïòóôõöùúûü]*')})`, 'gi');
+                    highlightedLine = highlightedLine.replace(regex, '<mark>$1</mark>');
+
+                    const isActive = index === window.textareaMatchIndex;
+                    const className = isActive ? 'step-focus' : '';
+
+                    html += `
+            <div class="task-step ${className}" data-match-index="${index}" data-line-index="${match.lineIndex}" style="cursor: pointer;">
+                <div class="step-content">${highlightedLine}</div>
+            </div>
+        `;
+                });
+
+                previewDiv.innerHTML = html;
+
+                // 🔥 ADICIONAR EVENT LISTENERS NOS ITEMS
+                const items = previewDiv.querySelectorAll('.task-step');
+                items.forEach(item => {
+                    item.addEventListener('click', () => {
+                        const lineIndex = parseInt(item.dataset.lineIndex);
+                        editTextareaLine(lineIndex, searchValue);
+                    });
+                });
+
+                // Focar no item ativo
+                setTimeout(() => {
+                    const activeElement = previewDiv.querySelector('.step-focus');
+                    if (activeElement) {
+                        activeElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }
+                }, 50);
+            }
+
+            function editTextareaLine(lineIndex, searchValue) {
+                const textarea = document.getElementById('editTaskSteps');
+                const previewDiv = document.getElementById('editModalPreview');
+
+                if (!textarea) return;
+
+                // Ocultar preview e mostrar textarea
+                previewDiv.style.display = 'none';
+                textarea.style.display = 'block';
+
+                // Calcular posição do cursor na linha específica
+                const lines = textarea.value.split('\n');
+                let position = 0;
+
+                for (let i = 0; i < lineIndex; i++) {
+                    position += lines[i].length + 1; // +1 para o \n
+                }
+
+                // Se houver texto de busca, encontrar a palavra na linha
+                if (searchValue) {
+                    const line = lines[lineIndex];
+                    const normalizeText = (text) => {
+                        return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                    };
+
+                    const normalizedLine = normalizeText(line);
+                    const normalizedSearch = normalizeText(searchValue);
+                    const wordPosition = normalizedLine.indexOf(normalizedSearch);
+
+                    if (wordPosition !== -1) {
+                        position += wordPosition;
+
+                        // Selecionar a palavra encontrada
+                        textarea.focus();
+                        textarea.setSelectionRange(position, position + searchValue.length);
+                    } else {
+                        // Se não encontrar, selecionar o início da linha
+                        textarea.focus();
+                        textarea.setSelectionRange(position, position);
+                    }
+                } else {
+                    // Sem busca, apenas focar na linha
+                    textarea.focus();
+                    textarea.setSelectionRange(position, position);
+                }
+
+                // Scroll para a linha
+                const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 20;
+                textarea.scrollTop = Math.max(0, (lineIndex - 3) * lineHeight);
+
+                // Limpar a busca
+                const searchInput = document.getElementById('editModalSearch');
+                const counter = document.getElementById('editModalSearchCounter');
+
+                if (searchInput) searchInput.value = '';
+                if (counter) counter.textContent = '';
+
+                window.textareaMatches = [];
+                window.textareaMatchIndex = 0;
+            }
+
+            function nextTextareaMatch() {
+                const searchInput = document.getElementById('editModalSearch');
+
+                if (!window.textareaMatches || window.textareaMatches.length === 0) return;
+
+                window.textareaMatchIndex = (window.textareaMatchIndex + 1) % window.textareaMatches.length;
+
+                const normalizeText = (text) => {
+                    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                };
+
+                renderTextareaMatches(window.textareaMatches, searchInput.value, normalizeText);
+                updateTextareaCounter(window.textareaMatchIndex + 1, window.textareaMatches.length);
+            }
+
+            function prevTextareaMatch() {
+                const searchInput = document.getElementById('editModalSearch');
+
+                if (!window.textareaMatches || window.textareaMatches.length === 0) return;
+
+                window.textareaMatchIndex = (window.textareaMatchIndex - 1 + window.textareaMatches.length) % window.textareaMatches.length;
+
+                const normalizeText = (text) => {
+                    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                };
+
+                renderTextareaMatches(window.textareaMatches, searchInput.value, normalizeText);
+                updateTextareaCounter(window.textareaMatchIndex + 1, window.textareaMatches.length);
+            }
+
+            function updateTextareaCounter(current, total) {
+                const counter = document.getElementById('editModalSearchCounter');
+                if (counter) {
+                    counter.textContent = total > 0 ? `${current}/${total}` : '';
+                }
+            }
+
+            function clearTextareaSearch(textarea) {
+                const searchInput = document.getElementById('editModalSearch');
+                const counter = document.getElementById('editModalSearchCounter');
+                const previewDiv = document.getElementById('editModalPreview');
+
+                if (searchInput) searchInput.value = '';
+                if (counter) counter.textContent = '';
+
+                // Ocultar preview e mostrar textarea
+                if (previewDiv) previewDiv.style.display = 'none';
+                if (textarea) textarea.style.display = 'block';
+
+                window.textareaMatches = [];
+                window.textareaMatchIndex = 0;
             }
 
             function focusOnCurrentMatch(taskElement) {
@@ -3104,7 +3438,7 @@
                     const counter = document.createElement('span');
                     counter.className = 'search-counter';
                     counter.textContent = `${currentMatchIndex + 1}/${currentSearchMatches.length}`;
-                    counter.style.cssText = 'margin-left: 10px; color: #666; font-size: 12px;';
+                    counter.style.cssText = 'margin-left: 0px; margin-right: 5px; color: #666; font-size: 12px;';
                     searchInput.parentElement.appendChild(counter);
                 }
             }
@@ -3556,7 +3890,7 @@
                             totalLoadedTasks = filteredTasks.length;
                             this.style.display = 'none';
                         }
-                        renderTasks(filteredTasks.slice(0, totalLoadedTasks));
+                        loadTasks(); // ← MUDANÇA: usar loadTasks() ao invés de renderTasks()
                     });
                 }
 
@@ -3762,6 +4096,34 @@
                 if (!checkSpeechSynthesisSupport()) {
                     console.warn('Botões de leitura podem não funcionar corretamente');
                 }
+
+                // Adicionar CSS para preview do modal
+                const style = document.createElement('style');
+                style.textContent = `
+    #editModalPreview .task-step {
+        padding: 10px;
+        margin: 5px 0;
+        border-left: 3px solid transparent;
+        transition: all 0.3s ease;
+        cursor: pointer; /* 🔥 Mostrar que é clicável */
+    }
+    
+    #editModalPreview .task-step:hover {
+        background-color: #f0f0f0; /* 🔥 Efeito hover */
+    }
+    
+    #editModalPreview .task-step.step-focus {
+        background-color: #fff3cd;
+        border-left-color: #ffc107;
+    }
+    
+    #editModalPreview .step-content mark {
+        background-color: #ffeb3b;
+        padding: 2px 4px;
+        border-radius: 3px;
+    }
+`;
+                document.head.appendChild(style);
 
                 console.log('Dispositivo detectado:', isMobileDevice() ? 'Mobile' : 'Desktop');
                 console.log('Pausa após título:', PAUSE_AFTER_TITLE + 'ms');
