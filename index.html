@@ -2171,64 +2171,66 @@
                         editTaskNameInput.value = task.name;
                         editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
                         // Adicionar busca no modal se não existir
-                        // Adicionar busca no modal se não existir
                         if (!document.getElementById('editModalSearchContainer')) {
                             const searchContainer = document.createElement('div');
                             searchContainer.id = 'editModalSearchContainer';
                             searchContainer.className = 'task-local-search';
                             searchContainer.innerHTML = `
-        <button id="editModalSearchPrev" class="cuqui" title="Anterior">◀</button>
-        <button id="editModalSearchNext" class="cuqui" title="Próxima">▶</button>
-        <button id="editModalSearchClear" class="cuqui" title="Limpar">✖</button>
-        <input type="text" id="editModalSearch" class="cuqui0" placeholder="Pesquisar no texto..."/>
-        <span id="editModalSearchCounter" style="margin-left: 10px; color: #666; font-size: 12px;"></span>
-    `;
+                            
+                                <button id="editModalVoiceSearch" class="cuqui" title="Pesquisar por voz">🎙️</button>
+                                <button id="editModalSearchPrev" class="cuqui" title="Anterior">◀</button>
+                                <button id="editModalSearchNext" class="cuqui" title="Próxima">▶</button>
+                                <button id="editModalSearchClear" class="cuqui" title="Limpar">✖</button>
+                                <input type="text" id="editModalSearch" class="cuqui0" placeholder="Pesquisar no texto..."/>
+                                <span id="editModalSearchCounter" style="margin-left: 10px; color: #666; font-size: 12px;"></span>
+                            
+                            `;
                             editTaskStepsInput.parentElement.insertBefore(searchContainer, editTaskStepsInput);
 
                             // Criar área de visualização (read-only)
                             const previewDiv = document.createElement('div');
                             previewDiv.id = 'editModalPreview';
                             previewDiv.style.cssText = `
-        display: none;
-        max-height: 400px;
-        overflow-y: auto;
-        border: 1px solid #ddd;
-        padding: 10px;
-        background: #f9f9f9;
-        margin-bottom: 10px;
-        white-space: pre-wrap;
-        font-family: monospace;
-        line-height: 1.6;
-    `;
+                                display: none;
+                                max-height: 400px;
+                                overflow-y: auto;
+                                border: 1px solid #ddd;
+                                padding: 10px;
+                                background: #f9f9f9;
+                                margin-bottom: 10px;
+                                white-space: pre-wrap;
+                                font-family: monospace;
+                                line-height: 1.6;
+                            `;
                             editTaskStepsInput.parentElement.insertBefore(previewDiv, editTaskStepsInput);
                         }
                         currentEditTaskId = taskId;
 
                         if (task.images && task.images.length > 0) {
                             let imagesHtml = `
-                    <div style="text-align: center;">
-                        <p>Imagens atuais:</p>
-                        <div style="display: flex; overflow-x: auto; gap: 10px; padding: 10px 0;">
-                `;
+                                <div style="text-align: center;">
+                                    <p>Imagens atuais:</p>
+                                    <div style="display: flex; overflow-x: auto; gap: 10px; padding: 10px 0;">
+                            `;
 
                             task.images.forEach((image, index) => {
                                 imagesHtml += `
-                        <div style="position: relative; display: inline-block;">
-                            <img src="${image}" 
-                                 alt="Imagem ${index + 1}" 
-                                 class="edit-scroll-image" 
-                                 style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
-                            <button type="button" onclick="removeExistingImage(${index})"
-                                    style="position: absolute; top: -2px; right: -2px; background: #f0000000; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; padding: 0; justify-content: center; align-items: center;">❌</button>
-                        </div>
-                    `;
+                                    <div style="position: relative; display: inline-block;">
+                                        <img src="${image}" 
+                                            alt="Imagem ${index + 1}" 
+                                            class="edit-scroll-image" 
+                                            style="max-width: 100px; max-height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer;">
+                                        <button type="button" onclick="removeExistingImage(${index})"
+                                                style="position: absolute; top: -2px; right: -2px; background: #f0000000; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; padding: 0; justify-content: center; align-items: center;">❌</button>
+                                    </div>
+                                `;
                             });
 
                             imagesHtml += `
-                        </div>
-                        <small>Adicione novas imagens ou remova as existentes</small>
-                    </div>
-                `;
+                                    </div>
+                                    <small>Adicione novas imagens ou remova as existentes</small>
+                                </div>
+                            `;
 
                             currentImagePreview.innerHTML = imagesHtml;
 
@@ -2246,15 +2248,15 @@
                             }, 0);
                         } else if (task.image) {
                             currentImagePreview.innerHTML = `
-                    <div style="text-align: center;">
-                        <p>Imagem atual:</p>
-                        <img src="${task.image}" 
-                             alt="Imagem atual" 
-                             class="edit-scroll-image" 
-                             style="max-width: 200px; max-height: 150px; object-fit: cover; border-radius: 8px; cursor: pointer;">
-                        <br><small>Adicione novas imagens para substituir</small>
-                    </div>
-                `;
+                                        <div style="text-align: center;">
+                                            <p>Imagem atual:</p>
+                                            <img src="${task.image}" 
+                                                alt="Imagem atual" 
+                                                class="edit-scroll-image" 
+                                                style="max-width: 200px; max-height: 150px; object-fit: cover; border-radius: 8px; cursor: pointer;">
+                                            <br><small>Adicione novas imagens para substituir</small>
+                                        </div>
+                                    `;
 
                             setTimeout(() => {
                                 const img = currentImagePreview.querySelector('.edit-scroll-image');
@@ -2321,6 +2323,40 @@
                                 const newBtn = editModalSearchClear.cloneNode(true);
                                 editModalSearchClear.parentNode.replaceChild(newBtn, editModalSearchClear);
                                 newBtn.addEventListener('click', () => clearTextareaSearch(editTaskSteps));
+                            }
+                            // 🔥 EVENT LISTENER PARA BUSCA POR VOZ
+                            const editModalVoiceSearch = document.getElementById('editModalVoiceSearch');
+                            if (editModalVoiceSearch && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+                                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                                const modalRecognition = new SpeechRecognition();
+
+                                modalRecognition.lang = 'pt-BR';
+                                modalRecognition.interimResults = false;
+
+                                const newVoiceBtn = editModalVoiceSearch.cloneNode(true);
+                                editModalVoiceSearch.parentNode.replaceChild(newVoiceBtn, editModalVoiceSearch);
+
+                                newVoiceBtn.addEventListener('click', () => {
+                                    modalRecognition.start();
+                                });
+
+                                modalRecognition.onresult = (event) => {
+                                    const transcript = event.results[0][0].transcript;
+                                    const searchInput = document.getElementById('editModalSearch');
+                                    if (searchInput) {
+                                        searchInput.value = transcript;
+                                        searchInput.dispatchEvent(new Event('input'));
+                                    }
+                                };
+
+                                modalRecognition.onerror = (event) => {
+                                    console.error('Erro no reconhecimento de voz do modal:', event.error);
+                                };
+                            } else if (editModalVoiceSearch) {
+                                // Se não suportar, desabilitar o botão
+                                editModalVoiceSearch.disabled = true;
+                                editModalVoiceSearch.title = 'Reconhecimento de voz não suportado';
+                                editModalVoiceSearch.style.opacity = '0.5';
                             }
                         }, 100);
 
