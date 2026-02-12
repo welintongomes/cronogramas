@@ -768,7 +768,6 @@
         }
 
         .image-preview {
-            margin-top: 10px;
             text-align: center;
             display: flex;
             overflow-x: auto;
@@ -983,11 +982,15 @@
             background: #555;
         }
 
-        .task-local-search {
-            display: flex;
-            gap: 8px;
-            margin: 0px;
-        }
+       .task-local-search {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+#editModalSearch {
+    margin: 0px;
+}
 
         .step-search-input {
             flex: 1;
@@ -1041,6 +1044,25 @@
             padding: 6px;
             background-color: #6a69cb;
         }
+
+        
+
+        .search-counter {
+            margin-left: 10px;
+            color: #666;
+            font-size: 12px;
+        }
+
+        .cuqui {
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .cuqui0 {
+            flex: 1;
+            min-width: 150px;
+        }
+
 
         @media (max-width: 768px) {
             body {
@@ -1243,6 +1265,10 @@
                 margin: 10px 0px 10px 0px;
                 padding: 5px 10px 5px 10px;
             }
+            .cuquios {
+    margin: 1px 0px 1px 0px;
+    padding: 10px 14px 10px 14px;
+}
 
             .cuqui0 {
                 margin: 10px 7px 14px 4px;
@@ -1389,6 +1415,11 @@
                     <label for="editTaskName">Nome do Cronograma:</label>
                     <input type="text" id="editTaskName">
                 </div>
+
+                
+
+                <div id="editModalPreview" class="preview-box"></div>
+
                 <div class="form-group">
                     <label for="editTaskSteps">Passos a serem executados (um por linha):</label>
                     <textarea id="editTaskSteps"></textarea>
@@ -1422,7 +1453,18 @@
 
                     <div id="currentImagePreview" style="margin-top: 10px;"></div>
                 </div>
+                <div id="editModalSearchContainer" class="task-local-search">
 
+                    <button id="editModalVoiceSearch" class="searchvoice" title="Pesquisar por voz">🎙️</button>
+                    <button id="editModalSearchClear" class="cuquios" title="Limpar">✖</button>
+                    <button id="editModalSearchPrev" class="ant" title="Anterior">◀</button>
+                    <button id="editModalSearchNext" class="prox" title="Próxima">▶</button>
+
+                    <input type="text" id="editModalSearch" class="cuqui0" placeholder="Pesquisar no texto...">
+
+                    <span id="editModalSearchCounter" class="search-counter"></span>
+
+                </div>
 
                 <!-- ADICIONAR ESTE BLOCO: -->
                 <div class="create-btn-row">
@@ -2171,39 +2213,7 @@
                         editTaskNameInput.value = task.name;
                         editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
                         // Adicionar busca no modal se não existir
-                        if (!document.getElementById('editModalSearchContainer')) {
-                            const searchContainer = document.createElement('div');
-                            searchContainer.id = 'editModalSearchContainer';
-                            searchContainer.className = 'task-local-search';
-                            searchContainer.innerHTML = `
-                            
-                                <button id="editModalVoiceSearch" class="cuqui" title="Pesquisar por voz">🎙️</button>
-                                <button id="editModalSearchPrev" class="cuqui" title="Anterior">◀</button>
-                                <button id="editModalSearchNext" class="cuqui" title="Próxima">▶</button>
-                                <button id="editModalSearchClear" class="cuqui" title="Limpar">✖</button>
-                                <input type="text" id="editModalSearch" class="cuqui0" placeholder="Pesquisar no texto..."/>
-                                <span id="editModalSearchCounter" style="margin-left: 10px; color: #666; font-size: 12px;"></span>
-                            
-                            `;
-                            editTaskStepsInput.parentElement.insertBefore(searchContainer, editTaskStepsInput);
 
-                            // Criar área de visualização (read-only)
-                            const previewDiv = document.createElement('div');
-                            previewDiv.id = 'editModalPreview';
-                            previewDiv.style.cssText = `
-                                display: none;
-                                max-height: 400px;
-                                overflow-y: auto;
-                                border: 1px solid #ddd;
-                                padding: 10px;
-                                background: #f9f9f9;
-                                margin-bottom: 10px;
-                                white-space: pre-wrap;
-                                font-family: monospace;
-                                line-height: 1.6;
-                            `;
-                            editTaskStepsInput.parentElement.insertBefore(previewDiv, editTaskStepsInput);
-                        }
                         currentEditTaskId = taskId;
 
                         if (task.images && task.images.length > 0) {
@@ -2229,6 +2239,7 @@
                             imagesHtml += `
                                     </div>
                                     <small>Adicione novas imagens ou remova as existentes</small>
+
                                 </div>
                             `;
 
