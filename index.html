@@ -1196,11 +1196,11 @@
             }
 
             #editTaskSteps {
-                width: 100%;
-                height: 80px;
-                resize: none;
-                font-size: 16px;
-            }
+    width: 100%;
+    height: 96px;
+    resize: none;
+    font-size: 16px;
+}
 
             #resizeHandle {
                 height: 28px;
@@ -2275,6 +2275,31 @@
 
                         editTaskNameInput.value = task.name;
                         editTaskStepsInput.value = task.steps.map(step => step.text).join('\n');
+                        // 🔥 Colocar foco e criar nova linha automaticamente
+setTimeout(() => {
+    editTaskStepsInput.focus();
+
+    // Se já tiver conteúdo e não terminar com quebra de linha
+    if (
+        editTaskStepsInput.value &&
+        !editTaskStepsInput.value.endsWith('\n')
+    ) {
+        editTaskStepsInput.value += '\n';
+    }
+
+    // Move cursor para o final
+    const end = editTaskStepsInput.value.length;
+    editTaskStepsInput.setSelectionRange(end, end);
+
+    // 🔥 Scroll vertical para baixo
+    editTaskStepsInput.scrollTop = editTaskStepsInput.scrollHeight;
+
+    // 🔥 Resetar scroll horizontal
+    editTaskStepsInput.scrollLeft = 0;
+
+}, 50);
+
+
                         // Adicionar busca no modal se não existir
 
                         currentEditTaskId = taskId;
@@ -3408,65 +3433,141 @@
             }
 
             function editTextareaLine(lineIndex, searchValue) {
-                const textarea = document.getElementById('editTaskSteps');
-                const previewDiv = document.getElementById('editModalPreview');
+    const textarea = document.getElementById('editTaskSteps');
+    const previewDiv = document.getElementById('editModalPreview');
+    
+    if (!textarea) return;
 
-                if (!textarea) return;
+    // Ocultar preview e mostrar textarea
+    previewDiv.style.display = 'none';
+    textarea.style.display = 'block';
 
-                // Ocultar preview e mostrar textarea
-                previewDiv.style.display = 'none';
-                textarea.style.display = 'block';
+    // Calcular posição do cursor na linha específica
+    const lines = textarea.value.split('\n');
+    let position = 0;
+    
+    for (let i = 0; i < lineIndex; i++) {
+        position += lines[i].length + 1; // +1 para o \n
+    }
 
-                // Calcular posição do cursor na linha específica
-                const lines = textarea.value.split('\n');
-                let position = 0;
-
-                for (let i = 0; i < lineIndex; i++) {
-                    position += lines[i].length + 1; // +1 para o \n
-                }
-
-                // Se houver texto de busca, encontrar a palavra na linha
-                if (searchValue) {
-                    const line = lines[lineIndex];
-                    const normalizeText = (text) => {
-                        return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-                    };
-
-                    const normalizedLine = normalizeText(line);
-                    const normalizedSearch = normalizeText(searchValue);
-                    const wordPosition = normalizedLine.indexOf(normalizedSearch);
-
-                    if (wordPosition !== -1) {
-                        position += wordPosition;
-
-                        // Selecionar a palavra encontrada
-                        textarea.focus();
-                        textarea.setSelectionRange(position, position + searchValue.length);
-                    } else {
-                        // Se não encontrar, selecionar o início da linha
-                        textarea.focus();
-                        textarea.setSelectionRange(position, position);
-                    }
-                } else {
-                    // Sem busca, apenas focar na linha
-                    textarea.focus();
-                    textarea.setSelectionRange(position, position);
-                }
-
-                // Scroll para a linha
-                const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 20;
-                textarea.scrollTop = Math.max(0, (lineIndex - 3) * lineHeight);
-
-                // Limpar a busca
-                const searchInput = document.getElementById('editModalSearch');
-                const counter = document.getElementById('editModalSearchCounter');
-
-                if (searchInput) searchInput.value = '';
-                if (counter) counter.textContent = '';
-
-                window.textareaMatches = [];
-                window.textareaMatchIndex = 0;
+    // Se houver texto de busca, encontrar a palavra na linha
+    if (searchValue) {
+        const line = lines[lineIndex];
+        const normalizeText = (text) => {
+            return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        };
+        
+        const normalizedLine = normalizeText(line);
+        const normalizedSearch = normalizeText(searchValue);
+        
+        // 🔥 CORREÇÃO: Encontrar a posição real considerando acentos
+        let wordPosition = -1;
+        let realPosition = 0;
+        
+        for (let i = 0; i < line.length; i++) {
+            const substring = normalizeText(line.substring(i));
+            if (substring.startsWith(normalizedSearch)) {
+                wordPosition = i;
+                break;
             }
+        }
+        
+        if (wordPosition !== -1) {
+            position += wordPosition;
+            
+            // 🔥 CALCULAR O TAMANHO REAL DA PALAVRA (pode ter acentos)
+            let realLength = 0;
+            let normalizedCount = 0;
+            
+            for (let i = wordPosition; i < line.length && normalizedCount < normalizedSearch.length; i++) {
+                const char = line[i];
+                const normalizedChar = normalizeText(char);
+                if (normalizedChar) {
+                    normalizedCount += normalizedChar.length;
+                }
+                realLength++;
+            }
+            
+            // Selecionar a palavra encontrada
+            textarea.focus();
+            textarea.setSelectionRange(position, position + realLength);
+            
+            // 🔥 SCROLL VERTICAL E HORIZONTAL
+            scrollToSelection(textarea, position, realLength);
+        } else {
+            // Se não encontrar, selecionar o início da linha
+            textarea.focus();
+            textarea.setSelectionRange(position, position);
+            scrollToSelection(textarea, position, 0);
+        }
+    } else {
+        // Sem busca, apenas focar na linha
+        textarea.focus();
+        textarea.setSelectionRange(position, position);
+        scrollToSelection(textarea, position, 0);
+    }
+
+    // Limpar a busca
+    const searchInput = document.getElementById('editModalSearch');
+    const counter = document.getElementById('editModalSearchCounter');
+    
+    if (searchInput) searchInput.value = '';
+    if (counter) counter.textContent = '';
+    
+    window.textareaMatches = [];
+    window.textareaMatchIndex = 0;
+}
+
+// 🔥 NOVA FUNÇÃO PARA SCROLL PERFEITO
+function scrollToSelection(textarea, start, length) {
+    // Scroll vertical
+    const textBeforeSelection = textarea.value.substring(0, start);
+    const lineNumber = textBeforeSelection.split('\n').length;
+    const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 20;
+    
+    // Centralizar verticalmente
+    const targetScrollTop = Math.max(0, (lineNumber - 3) * lineHeight);
+    textarea.scrollTop = targetScrollTop;
+    
+    // 🔥 SCROLL HORIZONTAL
+    setTimeout(() => {
+        // Criar elemento temporário para medir a largura do texto
+        const measure = document.createElement('span');
+        measure.style.cssText = `
+            position: absolute;
+            visibility: hidden;
+            white-space: pre;
+            font-family: ${getComputedStyle(textarea).fontFamily};
+            font-size: ${getComputedStyle(textarea).fontSize};
+        `;
+        
+        // Pegar a linha atual
+        const lines = textarea.value.split('\n');
+        const currentLineIndex = lineNumber - 1;
+        const currentLine = lines[currentLineIndex] || '';
+        
+        // Texto até a seleção na linha atual
+        const textBeforeInLine = textBeforeSelection.split('\n').pop() || '';
+        
+        measure.textContent = textBeforeInLine;
+        document.body.appendChild(measure);
+        
+        const textWidth = measure.offsetWidth;
+        document.body.removeChild(measure);
+        
+        // Scroll horizontal para mostrar a seleção
+        const textareaWidth = textarea.clientWidth;
+        const padding = 50; // margem de segurança
+        
+        if (textWidth > textarea.scrollLeft + textareaWidth - padding) {
+            // Precisa rolar para direita
+            textarea.scrollLeft = textWidth - textareaWidth / 2;
+        } else if (textWidth < textarea.scrollLeft + padding) {
+            // Precisa rolar para esquerda
+            textarea.scrollLeft = Math.max(0, textWidth - padding);
+        }
+    }, 10);
+}
 
             function nextTextareaMatch() {
                 const searchInput = document.getElementById('editModalSearch');
